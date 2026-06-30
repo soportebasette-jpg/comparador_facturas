@@ -355,12 +355,30 @@ main{max-width:700px;margin:28px auto 100px;padding:0 14px}
 .res-hero .big-label{font-size:.82rem;opacity:.9;margin-top:2px}
 .res-hero .ahorro-pill{
   display:inline-block;
-  margin-top:14px;
+  margin-top:16px;
   background:rgba(255,255,255,.25);
   border:1.5px solid rgba(255,255,255,.5);
   border-radius:50px;
-  padding:6px 18px;
-  font-size:.82rem;font-weight:800;
+  padding:8px 20px;
+  font-size:.88rem;font-weight:800;
+  font-family:'Nunito',sans-serif;
+}
+.res-hero .ahorro-pill.destacado{
+  background:#fff;
+  color:var(--win);
+  border:none;
+  padding:12px 26px;
+  font-size:1.05rem;
+  box-shadow:0 6px 20px rgba(0,0,0,.25);
+  animation:ahorro-pulse 1.8s ease-in-out infinite;
+}
+.res-hero .ahorro-pill .ahorro-num{
+  font-size:1.4em;
+  font-weight:900;
+}
+@keyframes ahorro-pulse{
+  0%,100%{transform:scale(1)}
+  50%{transform:scale(1.06)}
 }
 .tarifas-grid{
   display:grid;
@@ -621,7 +639,7 @@ footer a{color:var(--orange);text-decoration:underline;cursor:pointer}
       ¡Sube tu factura y te digo cuánto puedes ahorrar!
     </div>
   </div>
-  <h2 class="hero-title">El ahorro es fácil,<br><span>nos encargamos de todo</span></h2>
+  <h2 class="hero-title">El ahorro es fácil,<br><span>Nos encargamos de todo</span></h2>
   <p class="hero-sub">⚡ Sin meter datos · 🔥 Solo tu factura · ✅ Resultado inmediato</p>
   <div class="badges">
     <span class="badge badge-green">✅ 100% Gratis</span>
@@ -706,7 +724,7 @@ footer a{color:var(--orange);text-decoration:underline;cursor:pointer}
   <div class="tarifas-grid" id="tarifasGrid"></div>
 
   <div class="cta-section">
-    <h3>🐾 ¡Nos encaramos de todo!</h3>
+    <h3>🐾 ¡Nos encargamos de todo!</h3>
     <p>El cambio de compañía es gratis, sin cortes de luz y en menos de 1 minuto. ¡Déjame a mí!</p>
     <div class="cta-btns">
       <button class="btn-cta" onclick="abrirModal()">📝 Inscríbete gratis</button>
@@ -787,7 +805,7 @@ var T = {
   total:     { n:'Total Energies', c:'#FF6600', logo:'logo_totalenergy.png', luz:{kwh:0.124,pot:0.143,exc:0.070},    gas:{RL1:{kwh:0.073,fijo:9.50},RL2:{kwh:0.071,fijo:14.50}}, promo:'🎁 DAZN Premium GRATIS al contratar' },
   repsol:    { n:'Repsol',         c:'#E8001C', logo:'logo_repsol.png',      luz:{kwh:0.119,pot:0.258,exc:0.060},    gas:null, promo:'⛽ 20 € de regalo en gasolina Waylet' },
   iberdrola: { n:'Iberdrola',      c:'#006EB6', logo:'logo_iberdrola.png',   luz:{kwh:0.124,pot:0.229,exc:0.050},    gas:{RL1:{kwh:0.095728,fijo:6.25},RL2:{kwh:0.090965,fijo:11.18}} },
-  endesa:    { n:'Endesa',         c:'#00B451', logo:'logo_endesa.png',      luz:{kwh:0.127,pot:0.247,exc:0.060},    gas:{RL1:{kwh:0.0827,fijo:7.181},RL2:{kwh:0.0792,fijo:14.60}} }
+  endesa:    { n:'Endesa',         c:'#00B451', logo:null,                    luz:{kwh:0.127,pot:0.247,exc:0.060},    gas:{RL1:{kwh:0.0827,fijo:7.181},RL2:{kwh:0.0792,fijo:14.60}} }
 };
 var IMP_E = 0.0511, IMP_H = 0.00234, ALQL = 0.81, ALQG = 1.20;
 var IVA_PENINSULA = 0.21, IGIC_CANARIAS = 0.07;
@@ -1277,9 +1295,14 @@ function mostrarResultados(res, sorted, winner, ahorro, tipoFactura, kwhLuz, pot
   document.getElementById('bestName').textContent = T[winner].n;
   document.getElementById('bestPrice').textContent = fmt(res[winner].total);
   var ahorroPrefix = tipoFactura === 'ambos' ? '💰 Ahorro total (luz + gas): ' : '💰 Ahorras ';
-  document.getElementById('ahorroLabel').textContent = ahorro > 1
-    ? ahorroPrefix + fmt(ahorro) + ' al mes frente a tus facturas actuales (' + fmt(importeActual) + ')'
-    : '✅ Tu factura actual (' + fmt(importeActual) + ') ya es competitiva';
+  var ahorroEl = document.getElementById('ahorroLabel');
+  if(ahorro > 1){
+    ahorroEl.innerHTML = ahorroPrefix + '<span class="ahorro-num">' + fmt(ahorro) + '</span> al mes frente a tus facturas actuales (' + fmt(importeActual) + ')';
+    ahorroEl.classList.add('destacado');
+  } else {
+    ahorroEl.textContent = '✅ Tu factura actual (' + fmt(importeActual) + ') ya es competitiva';
+    ahorroEl.classList.remove('destacado');
+  }
 
   // Nota
   var modoTxt = tipoFactura === 'ambos' ? '⚡ Luz + 🔥 Gas (' + tarGas + ')' :
@@ -1333,7 +1356,7 @@ function mostrarResultados(res, sorted, winner, ahorro, tipoFactura, kwhLuz, pot
       '<div class="tc-head">' +
         '<div class="tc-dot" style="background:' + t.c + '">' +
           (t.logo
-            ? '<img src="' + t.logo + '" alt="' + t.n + '" style="width:100%;height:100%;object-fit:contain;border-radius:8px;background:#fff" onerror="console.error(\'[Comparador] No se pudo cargar el logo:\', this.src); if(!this.dataset.tried){ this.dataset.tried=1; this.src=\'logos/' + t.logo + '\'; } else { this.style.display=\'none\'; this.parentNode.textContent=\'' + t.n.slice(0,2).toUpperCase() + '\'; } ">'
+            ? '<img src="' + t.logo + '" alt="' + t.n + '" style="width:100%;height:100%;object-fit:contain;border-radius:8px;background:#fff" onerror="console.error(\'[Comparador] No se pudo cargar el logo. Ruta intentada:\', this.src); this.outerHTML=\'' + t.n.slice(0,2).toUpperCase() + '\';">'
             : t.n.slice(0,2).toUpperCase()) +
         '</div>' +
         '<div><div class="tc-name">' + t.n + '</div><div class="tc-type">' + tipoLabel + '</div></div>' +
