@@ -600,7 +600,7 @@ footer a{color:var(--orange);text-decoration:underline;cursor:pointer}
 
 <!-- AUDIO -->
 <audio id="bgMusic" loop preload="none">
-  <source src="cancion_tecomparotodo.mpeg" type="audio/mpeg">
+  <source src="cancion_tecomparotodo.mp3" type="audio/mpeg">
 </audio>
 
 <!-- HEADER -->
@@ -761,7 +761,7 @@ footer a{color:var(--orange);text-decoration:underline;cursor:pointer}
     <div class="modal-success" id="modalSuccess">
       <div class="ok-emoji">🎉</div>
       <h3>¡Listo! Muy pronto te llamamos 🐾</h3>
-      <p>Nuestro equipo te contactará en menos de 5 minutos para gestionar el cambio. <strong>¡El ahorro está a un paso!</strong></p>
+      <p>Nuestro equipo te contactará lo antes posible para gestionar el cambio. <strong>¡El ahorro está a un paso!</strong></p>
     </div>
   </div>
 </div>
@@ -782,12 +782,12 @@ if(window['pdfjsLib']){
 <script>
 // === TARIFAS ===
 var T = {
-  naturgy:   { n:'Naturgy',        c:'#00A651', luz:{kwh:0.112,pot:0.160367,exc:0.060}, gas:{RL1:{kwh:0.079533,fijo:5.15},RL2:{kwh:0.077434,fijo:9.15}} },
-  gana:      { n:'Gana Energía',   c:'#005BAC', luz:{kwh:0.119,pot:0.178868,exc:0.060}, gas:{RL1:{kwh:0.060700,fijo:3.93},RL2:{kwh:0.058600,fijo:8.11}}, promoGas:'⚠️ Tarifa INDEXADA' },
-  total:     { n:'Total Energies', c:'#FF6600', luz:{kwh:0.124,pot:0.143,exc:0.070},    gas:{RL1:{kwh:0.073,fijo:9.50},RL2:{kwh:0.071,fijo:14.50}}, promo:'🎁 DAZN Premium GRATIS al contratar' },
-  repsol:    { n:'Repsol',         c:'#E8001C', luz:{kwh:0.119,pot:0.258,exc:0.060},    gas:null, promo:'⛽ 20 € de regalo en gasolina Waylet' },
-  iberdrola: { n:'Iberdrola',      c:'#006EB6', luz:{kwh:0.124,pot:0.229,exc:0.050},    gas:{RL1:{kwh:0.095728,fijo:6.25},RL2:{kwh:0.090965,fijo:11.18}} },
-  endesa:    { n:'Endesa',         c:'#00B451', luz:{kwh:0.127,pot:0.247,exc:0.060},    gas:{RL1:{kwh:0.0827,fijo:7.181},RL2:{kwh:0.0792,fijo:14.60}} }
+  naturgy:   { n:'Naturgy',        c:'#00A651', logo:'logo_naturgy.png',     luz:{kwh:0.112,pot:0.160367,exc:0.060}, gas:{RL1:{kwh:0.079533,fijo:5.15},RL2:{kwh:0.077434,fijo:9.15}} },
+  gana:      { n:'Gana Energía',   c:'#005BAC', logo:'logo_gana.png',        luz:{kwh:0.119,pot:0.178868,exc:0.060}, gas:{RL1:{kwh:0.060700,fijo:3.93},RL2:{kwh:0.058600,fijo:8.11}}, promoGas:'⚠️ Tarifa INDEXADA' },
+  total:     { n:'Total Energies', c:'#FF6600', logo:'logo_totalenergy.png', luz:{kwh:0.124,pot:0.143,exc:0.070},    gas:{RL1:{kwh:0.073,fijo:9.50},RL2:{kwh:0.071,fijo:14.50}}, promo:'🎁 DAZN Premium GRATIS al contratar' },
+  repsol:    { n:'Repsol',         c:'#E8001C', logo:'logo_repsol.png',      luz:{kwh:0.119,pot:0.258,exc:0.060},    gas:null, promo:'⛽ 20 € de regalo en gasolina Waylet' },
+  iberdrola: { n:'Iberdrola',      c:'#006EB6', logo:'logo_iberdrola.png',   luz:{kwh:0.124,pot:0.229,exc:0.050},    gas:{RL1:{kwh:0.095728,fijo:6.25},RL2:{kwh:0.090965,fijo:11.18}} },
+  endesa:    { n:'Endesa',         c:'#00B451', logo:'logo_endesa.png',      luz:{kwh:0.127,pot:0.247,exc:0.060},    gas:{RL1:{kwh:0.0827,fijo:7.181},RL2:{kwh:0.0792,fijo:14.60}} }
 };
 var IMP_E = 0.0511, IMP_H = 0.00234, ALQL = 0.81, ALQG = 1.20;
 var IVA_PENINSULA = 0.21, IGIC_CANARIAS = 0.07;
@@ -960,9 +960,13 @@ function extraerTextoArchivo(file){
 }
 
 function extraerTextoPDF(file){
+  if(!window['pdfjsLib']){
+    console.error('[Comparador] pdfjsLib no está cargado. Revisa que el script de pdf.js se cargue correctamente (bloqueo de red, CDN caído, etc).');
+    return Promise.resolve('');
+  }
   return file.arrayBuffer().then(function(buf){
-    if(!window['pdfjsLib']) return '';
     return pdfjsLib.getDocument({data: buf}).promise.then(function(pdf){
+      console.log('[Comparador] PDF cargado correctamente, páginas:', pdf.numPages);
       var paginas = [];
       for(var i = 1; i <= pdf.numPages; i++){
         paginas.push(
@@ -976,7 +980,7 @@ function extraerTextoPDF(file){
       return Promise.all(paginas).then(function(textos){ return textos.join('\n'); });
     });
   }).catch(function(err){
-    console.error('Error leyendo PDF:', err);
+    console.error('[Comparador] Error leyendo PDF con pdf.js:', err);
     return '';
   });
 }
@@ -998,8 +1002,14 @@ function extraerTextoImagen(file){
 // Normaliza separador decimal español ("247,38" o "5,75") a número JS
 function numES(str){
   if(!str) return 0;
-  var s = str.replace(/\./g,'').replace(',', '.');
-  return parseFloat(s) || 0;
+  str = str.trim();
+  if(str.indexOf(',') !== -1){
+    // Formato español: el punto se usa como separador de miles y la coma como decimal
+    return parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0;
+  }
+  // Sin coma: puede venir en formato con punto decimal (p.ej. "2.2" en algunas facturas
+  // como Gana Energía). parseFloat interpreta el punto como decimal correctamente en ese caso.
+  return parseFloat(str) || 0;
 }
 
 // Analiza el texto extraído de una factura de LUZ y obtiene consumo (kWh/mes), potencia (kW) e importe (€)
@@ -1009,35 +1019,64 @@ function parsearFacturaLuz(texto){
 
   var t = texto.replace(/\s+/g, ' ');
 
-  // --- Días facturados (para prorratear consumo a mensual) ---
-  var mDias = t.match(/D[IÍ]AS\s+FACTURADOS:?\s*(\d{1,3})/i);
-  if(mDias) datos.dias = parseInt(mDias[1], 10);
-
   // --- Consumo total de energía (kWh) ---
-  // Prioriza "Consumo total de esta factura" / "Energía consumida (...) NN kWh" / "NN kWh" sumas
+  // Las facturas suelen desglosar el consumo en varios tramos o periodos de precio
+  // (p.ej. Iberdrola: "Energía consumida (fecha-fecha) NN kWh x precio";
+  //  Gana Energía y otras: "Término energía fecha/fecha N días - P1: NN kWh - Precio: ...").
+  // Hay que SUMAR todos los tramos/periodos encontrados (P1+P2+P3...) para obtener el consumo real.
   var consumoTotal = 0;
-  var mConsumoTotal = t.match(/(\d{1,5}(?:[.,]\d+)?)\s*kWh\s*(?:de\s+esta\s+factura|\.?\s*Consumo\s+total)/i);
-  if(!mConsumoTotal){
-    mConsumoTotal = t.match(/Consumo\s+total[^\d]{0,40}?(\d{1,5}(?:[.,]\d+)?)\s*kWh/i);
+  var reEnergiaConsumida = /(?:Energ[ií]a\s+consumida|T[eé]rmino\s+energ[ií]a)[\s\S]{0,90}?(\d{1,5}(?:[.,]\d+)?)\s*kWh/gi;
+  var mm, sumaEnergia = 0, tramosEnergia = 0;
+  while((mm = reEnergiaConsumida.exec(t)) !== null){
+    sumaEnergia += numES(mm[1]);
+    tramosEnergia++;
   }
-  if(mConsumoTotal){
-    consumoTotal = numES(mConsumoTotal[1]);
+  if(tramosEnergia > 0){
+    consumoTotal = sumaEnergia;
   } else {
-    // Suma todos los tramos "Energía consumida (...) NN kWh x ..."
-    var reEnergiaConsumida = /Energ[ií]a\s+consumida[^\d]{0,60}?(\d{1,5}(?:[.,]\d+)?)\s*kWh/gi;
-    var mm, suma = 0, encontrados = 0;
-    while((mm = reEnergiaConsumida.exec(t)) !== null){
-      suma += numES(mm[1]);
-      encontrados++;
+    // Si la factura no desglosa por tramos, usamos el "consumo total" que indique el resumen
+    var mConsumoTotal = t.match(/(\d{1,5}(?:[.,]\d+)?)\s*kWh\s*(?:de\s+esta\s+factura|\.?\s*Consumo\s+total)/i);
+    if(!mConsumoTotal){
+      mConsumoTotal = t.match(/Consumo\s+total[^\d]{0,40}?(\d{1,5}(?:[.,]\d+)?)\s*kWh/i);
     }
-    if(encontrados > 0) consumoTotal = suma;
-  }
-  if(!consumoTotal){
-    // Fallback genérico: primer "NN kWh" suelto razonable (10–2000)
-    var mGenerico = t.match(/(\d{1,4}(?:[.,]\d+)?)\s*kWh\b/i);
-    if(mGenerico) consumoTotal = numES(mGenerico[1]);
+    if(mConsumoTotal){
+      consumoTotal = numES(mConsumoTotal[1]);
+    } else {
+      // Fallback genérico: primer "NN kWh" suelto razonable
+      var mGenerico = t.match(/(\d{1,4}(?:[.,]\d+)?)\s*kWh\b/i);
+      if(mGenerico) consumoTotal = numES(mGenerico[1]);
+    }
   }
   datos.kwh = consumoTotal;
+
+  // --- Días facturados (para prorratear consumo y potencia a mensual) ---
+  // Detectamos cada rango de fechas único (dd/mm/aaaa-dd/mm/aaaa) junto a sus "N días" asociados
+  // y sumamos los días de cada rango DISTINTO, evitando contar el mismo periodo varias veces
+  // cuando una factura lo repite por cada franja P1/P2/P3 (como hace Gana Energía).
+  // Caso A: "días" aparece justo después del rango de fechas (formato Gana Energía: "fecha/fecha N días").
+  // Caso B: "X kW x N días" tras el rango de fechas, con "kW" como ancla intermedia (formato Iberdrola).
+  // Usamos un ancla cercana al rango de fechas en ambos casos para no confundirnos con números
+  // sueltos del documento (números de factura, CUPS, etc.) que no tienen relación con los días facturados.
+  var mapaDias = {}, hayRangos = false;
+  var reDiasA = /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\s*[\/\-]?\s*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\)?\s*(\d{1,3})\s*d[ií]as/gi;
+  var reDiasB = /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\s*[\/\-]?\s*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\)?[^.]{0,30}?kW[^.]{0,15}?(\d{1,3})\s*d[ií]as/gi;
+  var mr;
+  while((mr = reDiasA.exec(t)) !== null){
+    mapaDias[mr[1] + '_' + mr[2]] = parseInt(mr[3], 10);
+    hayRangos = true;
+  }
+  while((mr = reDiasB.exec(t)) !== null){
+    mapaDias[mr[1] + '_' + mr[2]] = parseInt(mr[3], 10);
+    hayRangos = true;
+  }
+  if(hayRangos){
+    var sumaDiasUnicos = 0;
+    for(var rk in mapaDias) sumaDiasUnicos += mapaDias[rk];
+    datos.dias = sumaDiasUnicos;
+  } else {
+    var mDias = t.match(/D[IÍ]AS\s+FACTURADOS:?\s*(\d{1,3})/i);
+    if(mDias) datos.dias = parseInt(mDias[1], 10);
+  }
 
   // --- Potencia contratada (kW) ---
   // Casos: "Potencia punta: 3,7 kW" / "Potencia: 5.75 kW" / "Punta 3,7 kW x ..."
@@ -1046,6 +1085,11 @@ function parsearFacturaLuz(texto){
   var mp;
   while((mp = rePot.exec(t)) !== null){
     potencias.push(numES(mp[1]));
+  }
+  if(potencias.length === 0){
+    // Formato "P1: X kW" (Gana Energía y otras con discriminación P1/P2/P3)
+    var mpP1 = t.match(/\bP1:?\s*(\d{1,2}(?:[.,]\d+)?)\s*kW\b/i);
+    if(mpP1) potencias.push(numES(mpP1[1]));
   }
   if(potencias.length === 0){
     var mp2 = t.match(/Punta\s+(\d{1,2}(?:[.,]\d+)?)\s*kW\b/i);
@@ -1057,6 +1101,9 @@ function parsearFacturaLuz(texto){
 
   // --- Importe total de la factura (€) ---
   var mImporte = t.match(/TOTAL\s+IMPORTE\s+FACTURA\s*(\d{1,5}(?:[.,]\d{1,2})?)\s*€/i);
+  if(!mImporte){
+    mImporte = t.match(/TOTAL\s+A\s+PAGAR\s*(\d{1,5}(?:[.,]\d{1,2})?)\s*€/i);
+  }
   if(!mImporte){
     mImporte = t.match(/\bTOTAL\b\s*(\d{1,5}(?:[.,]\d{1,2})?)\s*€/i);
   }
@@ -1096,7 +1143,9 @@ function procesarDatosLeidos(tipoFactura, textoLuz, textoGas){
   var importeLeidoLuz = 0, importeLeidoGas = 0;
 
   if(tipoFactura === 'luz' || tipoFactura === 'ambos'){
+    console.log('[Comparador] Texto extraído de la factura de luz (primeros 3000 caracteres):', textoLuz.slice(0, 3000));
     var dLuz = parsearFacturaLuz(textoLuz);
+    console.log('[Comparador] Datos detectados en la factura de luz:', dLuz);
     kwhLuz = dLuz.kwh;
     potencia = dLuz.potencia;
     importeLeidoLuz = dLuz.importe;
@@ -1270,7 +1319,7 @@ function mostrarResultados(res, sorted, winner, ahorro, tipoFactura, kwhLuz, pot
     var desgloseHtml = '<div class="tc-desglose">' +
       '<div class="tc-desglose-title">📊 Precio de potencia y energía</div>';
     if(r.luz > 0){
-      desgloseHtml += '<div class="tc-row"><span class="l">⚡ POTENCIAS (€/kW·día)</span><span class="v">' + fmt4(r.precioKwLuzDia) + '</span></div>';
+      desgloseHtml += '<div class="tc-row"><span class="l">⚡ Potencias (€/kW·día)</span><span class="v">' + fmt4(r.precioKwLuzDia) + '</span></div>';
       desgloseHtml += '<div class="tc-row"><span class="l">⚡ Energía (€/kWh)</span><span class="v">' + fmt4(r.precioKwhLuz) + '</span></div>';
     }
     if(r.gas > 0){
@@ -1282,7 +1331,11 @@ function mostrarResultados(res, sorted, winner, ahorro, tipoFactura, kwhLuz, pot
     card.innerHTML =
       (isWin ? '<div class="winner-badge">🏆 MEJOR PRECIO</div>' : '') +
       '<div class="tc-head">' +
-        '<div class="tc-dot" style="background:' + t.c + '">' + t.n.slice(0,2).toUpperCase() + '</div>' +
+        '<div class="tc-dot" style="background:' + t.c + '">' +
+          (t.logo
+            ? '<img src="' + t.logo + '" alt="' + t.n + '" style="width:100%;height:100%;object-fit:contain;border-radius:8px;background:#fff" onerror="console.error(\'[Comparador] No se pudo cargar el logo:\', this.src); if(!this.dataset.tried){ this.dataset.tried=1; this.src=\'logos/' + t.logo + '\'; } else { this.style.display=\'none\'; this.parentNode.textContent=\'' + t.n.slice(0,2).toUpperCase() + '\'; } ">'
+            : t.n.slice(0,2).toUpperCase()) +
+        '</div>' +
         '<div><div class="tc-name">' + t.n + '</div><div class="tc-type">' + tipoLabel + '</div></div>' +
       '</div>' +
       '<div class="tc-price"><div class="amt">' + fmt(r.total) + '</div><div class="mo">estimado/mes (' + nombreImpuesto() + ' incl.)</div></div>' +
@@ -1330,9 +1383,20 @@ function enviarFormulario(){
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ nombre: nombre, telefono: tel })
+  }).then(function(res){
+    return res.json().then(function(data){
+      if(!res.ok || !data.ok){
+        console.error('[Comparador] El servidor respondió con un error al guardar el lead:', res.status, data);
+      } else {
+        console.log('[Comparador] Lead guardado correctamente en IONOS:', data);
+      }
+    });
   }).catch(function(err){
-    // Si falla el guardado, no bloqueamos al usuario; seguimos con el flujo normal
-    console.error('No se pudo guardar el lead:', err);
+    // Si falla el guardado, no bloqueamos al usuario; seguimos con el flujo normal,
+    // pero dejamos constancia en consola para poder depurar (revisa la pestaña Network
+    // del navegador: si ves un error CORS o 404, significa que guardar_lead_comparador.php
+    // no está accesible en esa URL, o que la tabla lead_comparador_facturas no existe en IONOS)
+    console.error('[Comparador] No se pudo guardar el lead (revisa la URL, CORS o la tabla en IONOS):', err);
   });
 
   document.getElementById('modalForm').style.display = 'none';

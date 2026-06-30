@@ -1,6 +1,6 @@
 -- ============================================================
 -- Crea la tabla "lead_comparador_facturas" en tu base de datos
--- "lead" de IONOS. No toca ninguna tabla existente.
+-- de IONOS (dbs15501768). No toca ninguna tabla existente.
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS lead_comparador_facturas (
