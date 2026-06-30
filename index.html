@@ -1153,15 +1153,28 @@ document.getElementById('modalOverlay').addEventListener('click', function(e){
   if(e.target === this) cerrarModal();
 });
 
+// URL del script PHP en tu hosting de IONOS que guarda el lead en la base de datos
+var URL_GUARDAR_LEAD = 'https://www.tecomparotodo.es/guardar_lead_comparador.php';
+
 function enviarFormulario(){
   var nombre = document.getElementById('inputNombre').value.trim();
   var tel = document.getElementById('inputTelefono').value.trim();
   if(!nombre){ document.getElementById('inputNombre').focus(); return; }
   if(!tel || tel.length < 9){ document.getElementById('inputTelefono').focus(); return; }
-  
+
+  // Guarda el lead en la base de datos de IONOS (tabla lead_comparador_facturas)
+  fetch(URL_GUARDAR_LEAD, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nombre: nombre, telefono: tel })
+  }).catch(function(err){
+    // Si falla el guardado, no bloqueamos al usuario; seguimos con el flujo normal
+    console.error('No se pudo guardar el lead:', err);
+  });
+
   // Redirect to form
   window.open('https://www.tecomparotodo.es/#formulario', '_blank');
-  
+
   document.getElementById('modalForm').style.display = 'none';
   document.getElementById('modalSuccess').style.display = 'block';
 }
