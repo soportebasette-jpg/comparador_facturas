@@ -27,10 +27,12 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 // DATOS DE CONEXIÓN — RELLENA ESTO CON TUS DATOS REALES DE IONOS
 // Los encuentras en: Panel de IONOS > Bases de datos > tu base "lead"
 // ============================================================
-$DB_HOST = "TU_HOST_MYSQL_IONOS";      // ej: db5012345678.hosting-data.io
-$DB_NAME = "lead";                      // tu base de datos existente
-$DB_USER = "TU_USUARIO_MYSQL";          // ej: dbu1234567
-$DB_PASS = "TU_CONTRASEÑA_MYSQL";
+$DB_HOST = "db5020130880.hosting-data.io";
+$DB_NAME = "dbs15501768";                   // tu base de datos existente
+$DB_USER = "dbu1221870";
+$DB_PASS = "Mimorena68";
+$DB_PORT = "3306";
+$DB_CHARSET = "utf8mb4";
 
 // ============================================================
 // Leer datos enviados desde el formulario (JSON)
@@ -61,7 +63,7 @@ $ip = $_SERVER['REMOTE_ADDR'] ?? null;
 // ============================================================
 try {
     $pdo = new PDO(
-        "mysql:host=$DB_HOST;dbname=$DB_NAME;charset=utf8mb4",
+        "mysql:host=$DB_HOST;port=$DB_PORT;dbname=$DB_NAME;charset=$DB_CHARSET",
         $DB_USER,
         $DB_PASS,
         [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]

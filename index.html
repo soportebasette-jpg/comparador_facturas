@@ -772,6 +772,13 @@ footer a{color:var(--orange);text-decoration:underline;cursor:pointer}
   Tel: <a href="tel:650630005">650 630 005</a>
 </footer>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
+<script>
+if(window['pdfjsLib']){
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+</script>
 <script>
 // === TARIFAS ===
 var T = {
@@ -925,38 +932,194 @@ function extractAndCompare(){
   // lo que el cliente ha subido realmente (luz, gas o ambas)
   var tipoFactura = (fileLuz && fileGas) ? 'ambos' : (fileLuz ? 'luz' : 'gas');
 
-  var pendientes = [];
-  if(fileLuz) pendientes.push(fileLuz);
-  if(fileGas) pendientes.push(fileGas);
+  var textoLuz = '', textoGas = '';
+  var tareas = [];
 
-  var leidos = 0;
-  pendientes.forEach(function(f){
-    var reader = new FileReader();
-    reader.onload = function(){
-      leidos++;
-      if(leidos === pendientes.length){
-        procesarDatosLeidos(tipoFactura);
-      }
-    };
-    reader.readAsArrayBuffer(f);
+  if(fileLuz){
+    tareas.push(extraerTextoArchivo(fileLuz).then(function(t){ textoLuz = t; }));
+  }
+  if(fileGas){
+    tareas.push(extraerTextoArchivo(fileGas).then(function(t){ textoGas = t; }));
+  }
+
+  Promise.all(tareas).then(function(){
+    procesarDatosLeidos(tipoFactura, textoLuz, textoGas);
+  }).catch(function(err){
+    console.error('Error leyendo factura:', err);
+    procesarDatosLeidos(tipoFactura, textoLuz, textoGas);
   });
 }
 
-function procesarDatosLeidos(tipoFactura){
+// Extrae el texto de un archivo PDF (con pdf.js) o de una imagen (con OCR Tesseract.js)
+function extraerTextoArchivo(file){
+  var esPDF = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+  if(esPDF){
+    return extraerTextoPDF(file);
+  }
+  return extraerTextoImagen(file);
+}
+
+function extraerTextoPDF(file){
+  return file.arrayBuffer().then(function(buf){
+    if(!window['pdfjsLib']) return '';
+    return pdfjsLib.getDocument({data: buf}).promise.then(function(pdf){
+      var paginas = [];
+      for(var i = 1; i <= pdf.numPages; i++){
+        paginas.push(
+          pdf.getPage(i).then(function(page){
+            return page.getTextContent().then(function(content){
+              return content.items.map(function(it){ return it.str; }).join(' ');
+            });
+          })
+        );
+      }
+      return Promise.all(paginas).then(function(textos){ return textos.join('\n'); });
+    });
+  }).catch(function(err){
+    console.error('Error leyendo PDF:', err);
+    return '';
+  });
+}
+
+function extraerTextoImagen(file){
+  if(!window['Tesseract']) return Promise.resolve('');
+  return new Promise(function(resolve){
+    var reader = new FileReader();
+    reader.onload = function(){
+      Tesseract.recognize(reader.result, 'spa')
+        .then(function(result){ resolve(result.data.text || ''); })
+        .catch(function(err){ console.error('Error OCR imagen:', err); resolve(''); });
+    };
+    reader.onerror = function(){ resolve(''); };
+    reader.readAsDataURL(file);
+  });
+}
+
+// Normaliza separador decimal español ("247,38" o "5,75") a número JS
+function numES(str){
+  if(!str) return 0;
+  var s = str.replace(/\./g,'').replace(',', '.');
+  return parseFloat(s) || 0;
+}
+
+// Analiza el texto extraído de una factura de LUZ y obtiene consumo (kWh/mes), potencia (kW) e importe (€)
+function parsearFacturaLuz(texto){
+  var datos = { kwh: 0, potencia: 0, importe: 0, dias: 30 };
+  if(!texto) return datos;
+
+  var t = texto.replace(/\s+/g, ' ');
+
+  // --- Días facturados (para prorratear consumo a mensual) ---
+  var mDias = t.match(/D[IÍ]AS\s+FACTURADOS:?\s*(\d{1,3})/i);
+  if(mDias) datos.dias = parseInt(mDias[1], 10);
+
+  // --- Consumo total de energía (kWh) ---
+  // Prioriza "Consumo total de esta factura" / "Energía consumida (...) NN kWh" / "NN kWh" sumas
+  var consumoTotal = 0;
+  var mConsumoTotal = t.match(/(\d{1,5}(?:[.,]\d+)?)\s*kWh\s*(?:de\s+esta\s+factura|\.?\s*Consumo\s+total)/i);
+  if(!mConsumoTotal){
+    mConsumoTotal = t.match(/Consumo\s+total[^\d]{0,40}?(\d{1,5}(?:[.,]\d+)?)\s*kWh/i);
+  }
+  if(mConsumoTotal){
+    consumoTotal = numES(mConsumoTotal[1]);
+  } else {
+    // Suma todos los tramos "Energía consumida (...) NN kWh x ..."
+    var reEnergiaConsumida = /Energ[ií]a\s+consumida[^\d]{0,60}?(\d{1,5}(?:[.,]\d+)?)\s*kWh/gi;
+    var mm, suma = 0, encontrados = 0;
+    while((mm = reEnergiaConsumida.exec(t)) !== null){
+      suma += numES(mm[1]);
+      encontrados++;
+    }
+    if(encontrados > 0) consumoTotal = suma;
+  }
+  if(!consumoTotal){
+    // Fallback genérico: primer "NN kWh" suelto razonable (10–2000)
+    var mGenerico = t.match(/(\d{1,4}(?:[.,]\d+)?)\s*kWh\b/i);
+    if(mGenerico) consumoTotal = numES(mGenerico[1]);
+  }
+  datos.kwh = consumoTotal;
+
+  // --- Potencia contratada (kW) ---
+  // Casos: "Potencia punta: 3,7 kW" / "Potencia: 5.75 kW" / "Punta 3,7 kW x ..."
+  var potencias = [];
+  var rePot = /Potencia\s*(?:punta|contratada)?:?\s*(\d{1,2}(?:[.,]\d+)?)\s*kW\b/gi;
+  var mp;
+  while((mp = rePot.exec(t)) !== null){
+    potencias.push(numES(mp[1]));
+  }
+  if(potencias.length === 0){
+    var mp2 = t.match(/Punta\s+(\d{1,2}(?:[.,]\d+)?)\s*kW\b/i);
+    if(mp2) potencias.push(numES(mp2[1]));
+  }
+  if(potencias.length > 0){
+    datos.potencia = potencias[0];
+  }
+
+  // --- Importe total de la factura (€) ---
+  var mImporte = t.match(/TOTAL\s+IMPORTE\s+FACTURA\s*(\d{1,5}(?:[.,]\d{1,2})?)\s*€/i);
+  if(!mImporte){
+    mImporte = t.match(/\bTOTAL\b\s*(\d{1,5}(?:[.,]\d{1,2})?)\s*€/i);
+  }
+  if(!mImporte){
+    mImporte = t.match(/Importe\s+(?:total|actual)[^\d€]{0,30}?(\d{1,5}(?:[.,]\d{1,2})?)\s*€/i);
+  }
+  if(mImporte) datos.importe = numES(mImporte[1]);
+
+  return datos;
+}
+
+// Analiza el texto extraído de una factura de GAS y obtiene consumo (kWh/mes) y tarifa
+function parsearFacturaGas(texto){
+  var datos = { kwh: 0, tarifa: 'RL1', importe: 0, dias: 30 };
+  if(!texto) return datos;
+  var t = texto.replace(/\s+/g, ' ');
+
+  var mDias = t.match(/D[IÍ]AS\s+FACTURADOS:?\s*(\d{1,3})/i);
+  if(mDias) datos.dias = parseInt(mDias[1], 10);
+
+  var mConsumo = t.match(/Consumo\s+(?:facturado|total)[^\d]{0,40}?(\d{1,5}(?:[.,]\d+)?)\s*kWh/i);
+  if(!mConsumo) mConsumo = t.match(/(\d{1,5}(?:[.,]\d+)?)\s*kWh\b/i);
+  if(mConsumo) datos.kwh = numES(mConsumo[1]);
+
+  if(/RL\.?\s*2|tarifa\s*3\.?2|>\s*5\.?000/i.test(t)) datos.tarifa = 'RL2';
+
+  var mImporte = t.match(/TOTAL\s+IMPORTE\s+FACTURA\s*(\d{1,5}(?:[.,]\d{1,2})?)\s*€/i);
+  if(!mImporte) mImporte = t.match(/\bTOTAL\b\s*(\d{1,5}(?:[.,]\d{1,2})?)\s*€/i);
+  if(mImporte) datos.importe = numES(mImporte[1]);
+
+  return datos;
+}
+
+function procesarDatosLeidos(tipoFactura, textoLuz, textoGas){
   var kwhLuz = 0, potencia = 0, kwhGas = 0, tarGas = 'RL1';
+  var dias = 30;
+  var importeLeidoLuz = 0, importeLeidoGas = 0;
 
   if(tipoFactura === 'luz' || tipoFactura === 'ambos'){
-    kwhLuz = 200 + Math.floor(Math.random()*200); // 200-400 kWh
-    potencia = [3.45, 4.6, 5.75, 6.9][Math.floor(Math.random()*4)];
+    var dLuz = parsearFacturaLuz(textoLuz);
+    kwhLuz = dLuz.kwh;
+    potencia = dLuz.potencia;
+    importeLeidoLuz = dLuz.importe;
+    if(dLuz.dias) dias = dLuz.dias;
+    // Si no se pudo leer nada fiable, usamos valores medios razonables en vez de aleatorios
+    if(!kwhLuz) kwhLuz = 250;
+    if(!potencia) potencia = 4.6;
   }
   if(tipoFactura === 'gas' || tipoFactura === 'ambos'){
-    kwhGas = 80 + Math.floor(Math.random()*150);
-    tarGas = kwhGas * 12 < 5000 ? 'RL1' : 'RL2';
+    var dGas = parsearFacturaGas(textoGas);
+    kwhGas = dGas.kwh;
+    tarGas = dGas.tarifa;
+    importeLeidoGas = dGas.importe;
+    if(dGas.dias && tipoFactura !== 'ambos') dias = dGas.dias;
+    if(!kwhGas) kwhGas = 120;
   }
-  var dias = 30;
 
-  // Importe actual leído de la(s) factura(s) subida(s) (lo que el cliente paga hoy)
-  var importeActual = calcularImporteFacturaActual(tipoFactura, kwhLuz, potencia, kwhGas, tarGas, dias);
+  // Si hemos podido leer el importe real de la factura, lo usamos como "importe actual";
+  // si no, lo estimamos con una tarifa de referencia de mercado
+  var importeLeidoTotal = importeLeidoLuz + importeLeidoGas;
+  var importeActual = importeLeidoTotal > 0
+    ? importeLeidoTotal
+    : calcularImporteFacturaActual(tipoFactura, kwhLuz, potencia, kwhGas, tarGas, dias);
 
   computarResultados(tipoFactura, kwhLuz, potencia, kwhGas, tarGas, dias, importeActual);
 }
@@ -1107,7 +1270,7 @@ function mostrarResultados(res, sorted, winner, ahorro, tipoFactura, kwhLuz, pot
     var desgloseHtml = '<div class="tc-desglose">' +
       '<div class="tc-desglose-title">📊 Precio de potencia y energía</div>';
     if(r.luz > 0){
-      desgloseHtml += '<div class="tc-row"><span class="l">⚡ P1 Potencia (€/kW·día)</span><span class="v">' + fmt4(r.precioKwLuzDia) + '</span></div>';
+      desgloseHtml += '<div class="tc-row"><span class="l">⚡ POTENCIAS (€/kW·día)</span><span class="v">' + fmt4(r.precioKwLuzDia) + '</span></div>';
       desgloseHtml += '<div class="tc-row"><span class="l">⚡ Energía (€/kWh)</span><span class="v">' + fmt4(r.precioKwhLuz) + '</span></div>';
     }
     if(r.gas > 0){
@@ -1171,9 +1334,6 @@ function enviarFormulario(){
     // Si falla el guardado, no bloqueamos al usuario; seguimos con el flujo normal
     console.error('No se pudo guardar el lead:', err);
   });
-
-  // Redirect to form
-  window.open('https://www.tecomparotodo.es/#formulario', '_blank');
 
   document.getElementById('modalForm').style.display = 'none';
   document.getElementById('modalSuccess').style.display = 'block';
