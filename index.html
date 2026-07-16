@@ -1016,8 +1016,13 @@ function numES(str){
     // Formato español: el punto se usa como separador de miles y la coma como decimal
     return parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0;
   }
-  // Sin coma: puede venir en formato con punto decimal (p.ej. "2.2" en algunas facturas
-  // como Gana Energía). parseFloat interpreta el punto como decimal correctamente en ese caso.
+  if(str.indexOf('.') !== -1){
+    // Sin coma pero con punto: en facturas españolas el punto sin coma es SIEMPRE
+    // separador de miles (p.ej. "4.828" = 4828), nunca un decimal. Si tratáramos
+    // el punto como decimal aquí, "4.828 kWh" se leería como 4,828 kWh (bug real
+    // que causaba resultados de ~4€ en vez de ~600-800€ en facturas de alto consumo).
+    return parseFloat(str.replace(/\./g, '')) || 0;
+  }
   return parseFloat(str) || 0;
 }
 
@@ -1047,6 +1052,10 @@ function parsearFacturaLuz(texto){
     var mConsumoTotal = t.match(/(\d{1,5}(?:[.,]\d+)?)\s*kWh\s*(?:de\s+esta\s+factura|\.?\s*Consumo\s+total)/i);
     if(!mConsumoTotal){
       mConsumoTotal = t.match(/Consumo\s+total[^\d]{0,40}?(\d{1,5}(?:[.,]\d+)?)\s*kWh/i);
+    }
+    if(!mConsumoTotal){
+      // Formato "Total consumo NN kWh" (orden invertido, p.ej. Naturgy)
+      mConsumoTotal = t.match(/Total\s+consumo[^\d]{0,40}?(\d{1,5}(?:[.,]\d+)?)\s*kWh/i);
     }
     if(mConsumoTotal){
       consumoTotal = numES(mConsumoTotal[1]);
