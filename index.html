@@ -1211,7 +1211,9 @@ function calcularImporteFacturaActual(tipoFactura, kwhLuz, pot, kwhGas, tarGas, 
 
   if(tipoFactura === 'luz' || tipoFactura === 'ambos'){
     var refLuzKwh = 0.155, refLuzPot = 0.21;
-    var cPot = refLuzPot * pot * (dias/30);
+    // Mismo criterio que en computarResultados: refLuzPot es €/kW·día, se multiplica por
+    // los días reales de la factura, no se divide entre 30.
+    var cPot = refLuzPot * pot * dias;
     var cKwh = refLuzKwh * kwhLuz;
     var impE = (cPot + cKwh) * IMP_E;
     totalLuz = cPot + cKwh + impE + ALQL;
@@ -1253,7 +1255,10 @@ function computarResultados(tipoFactura, kwhLuz, pot, kwhGas, tarGas, dias, impo
     if(quiereLuz && t.luz){
       precioKwhLuz = t.luz.kwh;
       precioKwLuzDia = t.luz.pot;
-      costePotencia = t.luz.pot * pot * (dias/30);
+      // Potencia = precio €/kW·día x kW contratados x días facturados (NO dividir entre 30:
+      // t.luz.pot ya es un precio POR DÍA, así que "pot * dias" da el coste real del periodo;
+      // dividir entre 30 lo dejaba ~30 veces más barato de lo que debía ser).
+      costePotencia = t.luz.pot * pot * dias;
       costeEnergiaLuz = t.luz.kwh * kwhLuz;
       var imp = (costePotencia + costeEnergiaLuz) * IMP_E;
       totalLuz = costePotencia + costeEnergiaLuz + imp + ALQL;
