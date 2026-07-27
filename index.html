@@ -981,7 +981,20 @@ function extraerTextoPDF(file){
         paginas.push(
           pdf.getPage(i).then(function(page){
             return page.getTextContent().then(function(content){
-              return content.items.map(function(it){ return it.str; }).join(' ');
+              // IMPORTANTE: pdf.js ya inserta sus propios elementos de espacio (" ")
+              // entre palabras cuando corresponde, e incluso puede partir una palabra
+              // con tilde en varios "items" pegados sin espacio (p.ej. "Energ" + "í" + "a consumida").
+              // Si aquí forzamos un espacio extra entre CADA item con join(' '), esas palabras
+              // con tilde quedan rotas ("Energ í a consumida"), lo que hace que expresiones
+              // como /Energ[ií]a\s+consumida/ dejen de encontrar el texto real de la factura.
+              // Cuando eso pasa, el parser cae a un patrón "de emergencia" que coge el primer
+              // "NN kWh" suelto de la página (p.ej. el eje "kWh" de la gráfica junto al año "26"),
+              // devolviendo consumos absurdos como "26 kWh" en vez de los kWh reales de la factura.
+              // Solución: no añadir espacios propios; solo usar '\n' donde pdf.js marca fin de línea
+              // (it.hasEOL) y dejar que el propio texto de cada item conserve sus espacios reales.
+              return content.items.map(function(it){
+                return it.str + (it.hasEOL ? '\n' : '');
+              }).join('');
             });
           })
         );
