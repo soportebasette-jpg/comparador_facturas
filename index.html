@@ -1411,7 +1411,8 @@ document.getElementById('modalOverlay').addEventListener('click', function(e){
 });
 
 // URL del script PHP en tu hosting de IONOS que guarda el lead en la base de datos
-var URL_GUARDAR_LEAD = 'https://www.tecomparotodo.es/guardar_lead_comparador.php';
+// (movido a la carpeta /php/ dentro de public)
+var URL_GUARDAR_LEAD = 'https://www.tecomparotodo.es/php/guardar_lead_comparador.php';
 
 function enviarFormulario(){
   var nombre = document.getElementById('inputNombre').value.trim();
@@ -1419,30 +1420,46 @@ function enviarFormulario(){
   if(!nombre){ document.getElementById('inputNombre').focus(); return; }
   if(!tel || tel.length < 9){ document.getElementById('inputTelefono').focus(); return; }
 
-  // Guarda el lead en la base de datos de IONOS (tabla lead_comparador_facturas)
+  var btn = document.querySelector('.btn-modal-submit');
+  if(btn){ btn.disabled = true; btn.textContent = 'Enviando...'; }
+
+  // Guarda el lead en la base de datos de IONOS (tabla lead_comparador_facturas).
+  // IMPORTANTE: solo mostramos el mensaje de éxito DESPUÉS de confirmar que el
+  // guardado ha funcionado. Antes se mostraba el éxito de inmediato, sin esperar
+  // la respuesta del servidor, así que aunque el envío fallara (URL incorrecta,
+  // CORS bloqueado por el navegador, tabla inexistente, etc.) el usuario nunca
+  // se enteraba y en IONOS no llegaba nada.
   fetch(URL_GUARDAR_LEAD, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ nombre: nombre, telefono: tel })
   }).then(function(res){
-    return res.json().then(function(data){
-      if(!res.ok || !data.ok){
-        console.error('[Comparador] El servidor respondió con un error al guardar el lead:', res.status, data);
-      } else {
-        console.log('[Comparador] Lead guardado correctamente en IONOS:', data);
+    return res.json().catch(function(){ return null; }).then(function(data){
+      if(!res.ok || !data || !data.ok){
+        throw new Error('Respuesta del servidor: ' + res.status + ' ' + JSON.stringify(data));
       }
+      console.log('[Comparador] Lead guardado correctamente en IONOS:', data);
+      document.getElementById('modalForm').style.display = 'none';
+      document.getElementById('modalSuccess').style.display = 'block';
     });
   }).catch(function(err){
-    // Si falla el guardado, no bloqueamos al usuario; seguimos con el flujo normal,
-    // pero dejamos constancia en consola para poder depurar (revisa la pestaña Network
-    // del navegador: si ves un error CORS o 404, significa que guardar_lead_comparador.php
-    // no está accesible en esa URL, o que la tabla lead_comparador_facturas no existe en IONOS)
+    // Si falla el guardado, avisamos al usuario en vez de fingir que todo fue bien.
+    // Revisa la pestaña Network del navegador (F12): si ves un error CORS o 404 en
+    // guardar_lead_comparador.php, significa que ese script no es accesible desde
+    // esta URL, que le faltan las cabeceras CORS, o que la tabla no existe en IONOS.
     console.error('[Comparador] No se pudo guardar el lead (revisa la URL, CORS o la tabla en IONOS):', err);
+    if(btn){ btn.disabled = false; btn.textContent = 'Apuntarme'; }
+    var errorBox = document.getElementById('modalError');
+    if(!errorBox){
+      errorBox = document.createElement('div');
+      errorBox.id = 'modalError';
+      errorBox.style.cssText = 'margin-top:10px;padding:10px 12px;border-radius:8px;background:#fde2e2;color:#a11;font-size:13px;';
+      document.getElementById('modalForm').appendChild(errorBox);
+    }
+    errorBox.textContent = 'No se ha podido enviar tu inscripción. Comprueba tu conexión e inténtalo de nuevo.';
   });
-
-  document.getElementById('modalForm').style.display = 'none';
-  document.getElementById('modalSuccess').style.display = 'block';
 }
+
 </script>
 </body>
 </html>
