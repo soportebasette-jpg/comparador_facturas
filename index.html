@@ -1059,6 +1059,41 @@ function parsearFacturaLuz(texto){
     sumaEnergia += numES(mm[1]);
     tramosEnergia++;
   }
+
+  if(tramosEnergia === 0){
+    // Formato "Energía Activa" con tramos Punta/Llano/Valle (p.ej. Octopus Energy y otras
+    // comercializadoras con tarifa 2.0TD de 3 periodos): cada tramo aparece como fila propia
+    // "Punta 215,52 kWh ... 0,129 €/kWh ... 27,89 €" y luego se repite desglosado en
+    // Peaje/Cargos/Margen con el MISMO kWh, pero esas líneas de desglose NUNCA llevan la
+    // palabra "Punta/Llano/Valle" delante (van indentadas como "Peaje de distribución",
+    // "Cargos del sistema"...), así que no se confunden con la fila de total del tramo.
+    // Antes solo se leía la primera coincidencia de kWh de todo el documento (el tramo Punta),
+    // dejando Llano y Valle sin sumar: ahora sumamos cada tramo una sola vez.
+    var rePeriodo = /\b(Punta|Llano|Valle)\b[\s\S]{0,40}?(\d{1,5}(?:[.,]\d+)?)\s*kWh/gi;
+    var mp2, periodosVistos = {};
+    while((mp2 = rePeriodo.exec(t)) !== null){
+      var nombrePeriodo = mp2[1].toLowerCase();
+      if(!periodosVistos[nombrePeriodo]){
+        periodosVistos[nombrePeriodo] = true;
+        sumaEnergia += numES(mp2[2]);
+        tramosEnergia++;
+      }
+    }
+  }
+
+  if(tramosEnergia === 0){
+    // Formato "P1: NN kWh" / "P2: NN kWh" / "P3: NN kWh" (energía discriminada numéricamente)
+    var reP = /\bP([1-6]):?\s*(\d{1,5}(?:[.,]\d+)?)\s*kWh/gi;
+    var mp3, periodosP = {};
+    while((mp3 = reP.exec(t)) !== null){
+      if(!periodosP[mp3[1]]){
+        periodosP[mp3[1]] = true;
+        sumaEnergia += numES(mp3[2]);
+        tramosEnergia++;
+      }
+    }
+  }
+
   if(tramosEnergia > 0){
     consumoTotal = sumaEnergia;
   } else {
@@ -1090,8 +1125,11 @@ function parsearFacturaLuz(texto){
   // Usamos un ancla cercana al rango de fechas en ambos casos para no confundirnos con números
   // sueltos del documento (números de factura, CUPS, etc.) que no tienen relación con los días facturados.
   var mapaDias = {}, hayRangos = false;
-  var reDiasA = /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\s*[\/\-]?\s*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\)?\s*(\d{1,3})\s*d[ií]as/gi;
-  var reDiasB = /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\s*[\/\-]?\s*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\)?[^.]{0,30}?kW[^.]{0,15}?(\d{1,3})\s*d[ií]as/gi;
+  // El separador entre las dos fechas del rango puede ser "/", "-", o la palabra "a"/"al", y los
+  // días facturados a veces van entre paréntesis (p.ej. Octopus Energy:
+  // "Periodo: 14-07-2026 a 16-08-2026 (33 días)").
+  var reDiasA = /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\s*(?:[\/\-]|al?)?\s*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\)?\s*\(?\s*(\d{1,3})\s*d[ií]as\)?/gi;
+  var reDiasB = /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\s*(?:[\/\-]|al?)?\s*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\)?[^.]{0,30}?kW[^.]{0,15}?\(?\s*(\d{1,3})\s*d[ií]as\)?/gi;
   var mr;
   while((mr = reDiasA.exec(t)) !== null){
     mapaDias[mr[1] + '_' + mr[2]] = parseInt(mr[3], 10);
