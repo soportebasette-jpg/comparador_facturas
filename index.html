@@ -831,7 +831,8 @@ if(window['pdfjsLib']){
 var T = {
   naturgy:   { n:'Naturgy',        c:'#00A651', logo:'logo_naturgy.png',     luz:{kwh:0.112,pot:0.185,exc:0.060}, gas:{RL1:{kwh:0.079533,fijo:5.15},RL2:{kwh:0.077434,fijo:9.15}} },
   gana:      { n:'Gana Energía',   c:'#005BAC', logo:'logo_gana.png',        luz:{kwh:0.129,pot:0.178,exc:0.060}, gas:{RL1:{kwh:0.060700,fijo:3.93},RL2:{kwh:0.058600,fijo:8.11}}, promoGas:'⚠️ Tarifa INDEXADA' },
-  total:     { n:'Total Energies', c:'#FF6600', logo:'logo_totalenergy.png', luz:{kwh:0.1190,pot:0.158,exc:0.070},    gas:{RL1:{kwh:0.073,fijo:9.50},RL2:{kwh:0.071,fijo:14.50}}, promo:'🎁 DAZN Premium GRATIS al contratar' },
+  total:     { n:'Total Energies', c:'#FF6600', logo:'logo_totalenergy.png', luz:{kwh:0.1190,pot:0.16244,exc:0.070},    gas:{RL1:{kwh:0.073,fijo:9.50},RL2:{kwh:0.071,fijo:14.50}}, reqConsumoMax:4000, reqPotenciaMax:4, promo:'⚠️ Sin DAZN · Solo potencia &lt;4 kW y consumo &lt;4.000 kWh/año' },
+  total2:    { n:'Total Energies (DAZN)', c:'#FF6600', logo:'logo_totalenergy.png', luz:{kwh:0.129,pot:0.25194,exc:0.070},    gas:{RL1:{kwh:0.073,fijo:9.50},RL2:{kwh:0.071,fijo:14.50}}, reqPotenciaMax:4, promo:'🎁 DAZN Premium GRATIS (Fútbol o Motor) · Solo potencia &lt;4 kW' },
   repsol:    { n:'Repsol',         c:'#E8001C', logo:'logo_repsol.png',      luz:{kwh:0.119,pot:0.198,exc:0.060},    gas:null, promo:'⛽ 20 € de regalo en gasolina Waylet' },
   iberdrola: { n:'Iberdrola',      c:'#006EB6', logo:'logo_iberdrola.png',   luz:{kwh:0.124,pot:0.179,exc:0.050},    gas:{RL1:{kwh:0.095728,fijo:6.25},RL2:{kwh:0.090965,fijo:11.18}} },
   niba:      { n:'Niba',           c:'#2E7D32', logo:'logo_niba.png',        luz:{kwh:0.115,pot:0.178,exc:0.060},    gas:null },
@@ -1297,14 +1298,30 @@ function computarResultados(tipoFactura, kwhLuz, pot, kwhGas, tarGas, dias, impo
   var tasa = tasaImpuesto();
   var quiereLuz = tipoFactura === 'luz' || tipoFactura === 'ambos';
   var quiereGas = tipoFactura === 'gas' || tipoFactura === 'ambos';
+  // Estimación de consumo anual a partir del consumo leído en la factura y los días facturados,
+  // para poder aplicar tarifas que solo están disponibles por debajo de cierto consumo anual
+  // (p.ej. Total Energies sin DAZN solo aplica a <4.000 kWh/año).
+  var kwhAnual = (dias > 0) ? kwhLuz * (365/dias) : kwhLuz;
 
   // Solo comparamos compañías que ofrezcan lo que el cliente necesita
   var keys = Object.keys(T).filter(function(k){
+    if(quiereLuz && T[k].reqConsumoMax && kwhAnual >= T[k].reqConsumoMax) return false;
+    if(quiereLuz && T[k].reqPotenciaMax && pot >= T[k].reqPotenciaMax) return false;
     if(quiereLuz && quiereGas) return T[k].luz && T[k].gas && T[k].gas[tarGas];
     if(quiereLuz) return !!T[k].luz;
     if(quiereGas) return T[k].gas && T[k].gas[tarGas];
     return false;
   });
+
+  var restringidos = quiereLuz ? Object.keys(T).filter(function(k){
+    return (T[k].reqConsumoMax && kwhAnual >= T[k].reqConsumoMax) ||
+           (T[k].reqPotenciaMax && pot >= T[k].reqPotenciaMax);
+  }).map(function(k){
+    var motivos = [];
+    if(T[k].reqConsumoMax && kwhAnual >= T[k].reqConsumoMax) motivos.push('consumo &lt;' + T[k].reqConsumoMax + ' kWh/año');
+    if(T[k].reqPotenciaMax && pot >= T[k].reqPotenciaMax) motivos.push('potencia &lt;' + T[k].reqPotenciaMax + ' kW');
+    return T[k].n + ' (solo ' + motivos.join(' y ') + ')';
+  }) : [];
 
   keys.forEach(function(k){
     var t = T[k];
@@ -1354,13 +1371,13 @@ function computarResultados(tipoFactura, kwhLuz, pot, kwhGas, tarGas, dias, impo
   var winner = sorted[0];
   var ahorro = importeActual - resultados[winner].total;
 
-  mostrarResultados(resultados, sorted, winner, ahorro, tipoFactura, kwhLuz, pot, kwhGas, tarGas, importeActual);
+  mostrarResultados(resultados, sorted, winner, ahorro, tipoFactura, kwhLuz, pot, kwhGas, tarGas, importeActual, restringidos);
 }
 
 function fmt(n){ return n.toFixed(2).replace('.',',') + ' €'; }
 function fmt4(n){ return n.toFixed(6).replace('.',',') + ' €'; }
 
-function mostrarResultados(res, sorted, winner, ahorro, tipoFactura, kwhLuz, pot, kwhGas, tarGas, importeActual){
+function mostrarResultados(res, sorted, winner, ahorro, tipoFactura, kwhLuz, pot, kwhGas, tarGas, importeActual, restringidos){
   document.getElementById('loadingWrap').style.display = 'none';
   document.getElementById('btnAnalizar').disabled = false;
 
@@ -1391,7 +1408,8 @@ function mostrarResultados(res, sorted, winner, ahorro, tipoFactura, kwhLuz, pot
     (kwhGas > 0 ? ' · Gas: <strong>' + kwhGas + ' kWh/mes</strong>' : '') +
     (pot > 0 ? ' · Potencia: <strong>' + pot + ' kW</strong>' : '') +
     ' · Importe actual: <strong>' + fmt(importeActual) + '</strong>' +
-    '<br>💡 Precios orientativos · Impuesto aplicado: <strong>' + nombreImpuesto() + '</strong>';
+    '<br>💡 Precios orientativos · Impuesto aplicado: <strong>' + nombreImpuesto() + '</strong>' +
+    (restringidos && restringidos.length ? '<br>🚫 ' + restringidos.join(' · ') + '.' : '');
 
   // Cards
   var grid = document.getElementById('tarifasGrid');
