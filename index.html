@@ -831,11 +831,11 @@ if(window['pdfjsLib']){
 var T = {
   naturgy:   { n:'Naturgy',        c:'#00A651', logo:'logo_naturgy.png',     luz:{kwh:0.112,pot:0.185,exc:0.060}, gas:{RL1:{kwh:0.079533,fijo:5.15},RL2:{kwh:0.077434,fijo:9.15}} },
   gana:      { n:'Gana Energía',   c:'#005BAC', logo:'logo_gana.png',        luz:{kwh:0.129,pot:0.178,exc:0.060}, gas:{RL1:{kwh:0.060700,fijo:3.93},RL2:{kwh:0.058600,fijo:8.11}}, promoGas:'⚠️ Tarifa INDEXADA' },
-  total:     { n:'Total Energies', c:'#FF6600', logo:'logo_totalenergy.png', luz:{kwh:0.1190,pot:0.16244,exc:0.070},    gas:{RL1:{kwh:0.073,fijo:9.50},RL2:{kwh:0.071,fijo:14.50}}, reqConsumoMax:4000, reqPotenciaMax:4, promo:'⚠️ Sin DAZN · Solo potencia &lt;4 kW y consumo &lt;4.000 kWh/año' },
+  total:     { n:'Total Energies', c:'#FF6600', logo:'logo_totalenergy.png', luz:{kwh:0.1190,pot:0.16244,exc:0.070},    gas:{RL1:{kwh:0.073,fijo:9.50},RL2:{kwh:0.071,fijo:14.50}}, reqPotenciaMax:4, promo:'⚠️ Sin DAZN · Solo para potencia contratada &lt;4 kW' },
   total2:    { n:'Total Energies (DAZN)', c:'#FF6600', logo:'logo_totalenergy.png', luz:{kwh:0.129,pot:0.25194,exc:0.070},    gas:{RL1:{kwh:0.073,fijo:9.50},RL2:{kwh:0.071,fijo:14.50}}, reqPotenciaMax:4, promo:'🎁 DAZN Premium GRATIS (Fútbol o Motor) · Solo potencia &lt;4 kW' },
   repsol:    { n:'Repsol',         c:'#E8001C', logo:'logo_repsol.png',      luz:{kwh:0.119,pot:0.198,exc:0.060},    gas:null, promo:'⛽ 20 € de regalo en gasolina Waylet' },
   iberdrola: { n:'Iberdrola',      c:'#006EB6', logo:'logo_iberdrola.png',   luz:{kwh:0.124,pot:0.179,exc:0.050},    gas:{RL1:{kwh:0.095728,fijo:6.25},RL2:{kwh:0.090965,fijo:11.18}} },
-  niba:      { n:'Niba',           c:'#2E7D32', logo:'logo_niba.png',        luz:{kwh:0.115,pot:0.178,exc:0.060},    gas:null },
+  niba:      { n:'Niba',           c:'#2E7D32', logo:'logo_niba.png',        luz:{kwh:0.119,pot:0.182,exc:0.060},    gas:null },
   endesa:    { n:'Endesa',         c:'#00B451', logo:null,                    luz:{kwh:0.137131,pot:0.187332,exc:0.060},    gas:{RL1:{kwh:0.0827,fijo:7.181},RL2:{kwh:0.0792,fijo:14.60}} },
   nordy:     { n:'Nordy',          c:'#003B2F', logo:'logo_nordy.png',       luz:{kwh:0.133,pot:0.180,exc:0},        gas:null, promo:'ℹ️ Precio energía 0,109 €/kWh + Gastos de gestión 0,024 €/kWh (revisable trimestralmente)' }
 };
@@ -1298,14 +1298,9 @@ function computarResultados(tipoFactura, kwhLuz, pot, kwhGas, tarGas, dias, impo
   var tasa = tasaImpuesto();
   var quiereLuz = tipoFactura === 'luz' || tipoFactura === 'ambos';
   var quiereGas = tipoFactura === 'gas' || tipoFactura === 'ambos';
-  // Estimación de consumo anual a partir del consumo leído en la factura y los días facturados,
-  // para poder aplicar tarifas que solo están disponibles por debajo de cierto consumo anual
-  // (p.ej. Total Energies sin DAZN solo aplica a <4.000 kWh/año).
-  var kwhAnual = (dias > 0) ? kwhLuz * (365/dias) : kwhLuz;
 
   // Solo comparamos compañías que ofrezcan lo que el cliente necesita
   var keys = Object.keys(T).filter(function(k){
-    if(quiereLuz && T[k].reqConsumoMax && kwhAnual >= T[k].reqConsumoMax) return false;
     if(quiereLuz && T[k].reqPotenciaMax && pot >= T[k].reqPotenciaMax) return false;
     if(quiereLuz && quiereGas) return T[k].luz && T[k].gas && T[k].gas[tarGas];
     if(quiereLuz) return !!T[k].luz;
@@ -1314,13 +1309,9 @@ function computarResultados(tipoFactura, kwhLuz, pot, kwhGas, tarGas, dias, impo
   });
 
   var restringidos = quiereLuz ? Object.keys(T).filter(function(k){
-    return (T[k].reqConsumoMax && kwhAnual >= T[k].reqConsumoMax) ||
-           (T[k].reqPotenciaMax && pot >= T[k].reqPotenciaMax);
+    return T[k].reqPotenciaMax && pot >= T[k].reqPotenciaMax;
   }).map(function(k){
-    var motivos = [];
-    if(T[k].reqConsumoMax && kwhAnual >= T[k].reqConsumoMax) motivos.push('consumo &lt;' + T[k].reqConsumoMax + ' kWh/año');
-    if(T[k].reqPotenciaMax && pot >= T[k].reqPotenciaMax) motivos.push('potencia &lt;' + T[k].reqPotenciaMax + ' kW');
-    return T[k].n + ' (solo ' + motivos.join(' y ') + ')';
+    return T[k].n + ' (solo para potencia contratada &lt;' + T[k].reqPotenciaMax + ' kW)';
   }) : [];
 
   keys.forEach(function(k){
