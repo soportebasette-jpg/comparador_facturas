@@ -1062,6 +1062,20 @@ function numES(str){
   return parseFloat(str) || 0;
 }
 
+// Normaliza un valor de potencia contratada (kW) a número JS.
+// A diferencia de numES(), aquí un punto suelto SIEMPRE es separador decimal
+// (p.ej. "5.75 kW"), nunca de miles: las potencias contratadas son valores
+// pequeños y nunca alcanzan magnitudes de miles, así que no hay ambigüedad
+// como sí la hay con consumos/importes (donde "4.828" son miles).
+function numESPotencia(str){
+  if(!str) return 0;
+  str = str.trim();
+  if(str.indexOf(',') !== -1){
+    return parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0;
+  }
+  return parseFloat(str) || 0;
+}
+
 // Analiza el texto extraído de una factura de LUZ y obtiene consumo (kWh/mes), potencia (kW) e importe (€)
 function parsearFacturaLuz(texto){
   var datos = { kwh: 0, potencia: 0, importe: 0, dias: 30 };
@@ -1074,11 +1088,23 @@ function parsearFacturaLuz(texto){
   // (p.ej. Iberdrola: "Energía consumida (fecha-fecha) NN kWh x precio";
   //  Gana Energía y otras: "Término energía fecha/fecha N días - P1: NN kWh - Precio: ...").
   // Hay que SUMAR todos los tramos/periodos encontrados (P1+P2+P3...) para obtener el consumo real.
+  // OJO: cuando cambian los precios a mitad de periodo de facturación, la factura
+  // desglosa cada tramo P1/P2/P3 en VARIAS líneas ("tarifa acceso" + "variable", una
+  // por cada precio aplicado), repitiendo el MISMO kWh del periodo en cada línea
+  // (p.ej. "Término energía tarifa acceso ... P1: 71 kWh" y "Término energía variable
+  // ... P1: 71 kWh" son el mismo consumo de P1, no 142 kWh). Si el periodo lleva
+  // etiqueta P1-P6 hay que deduplicar por esa etiqueta; si no la lleva (facturas sin
+  // discriminación horaria, p.ej. Iberdrola) cada línea es un tramo distinto y se suman todas.
   var consumoTotal = 0;
-  var reEnergiaConsumida = /(?:Energ[ií]a\s+consumida|T[eé]rmino\s+energ[ií]a)[\s\S]{0,90}?(\d{1,5}(?:[.,]\d+)?)\s*kWh/gi;
-  var mm, sumaEnergia = 0, tramosEnergia = 0;
+  var reEnergiaConsumida = /(?:Energ[ií]a\s+consumida|T[eé]rmino\s+energ[ií]a)[\s\S]{0,90}?(?:P([1-6])\s*:?\s*)?(\d{1,5}(?:[.,]\d+)?)\s*kWh/gi;
+  var mm, sumaEnergia = 0, tramosEnergia = 0, periodosVistosEnergia = {};
   while((mm = reEnergiaConsumida.exec(t)) !== null){
-    sumaEnergia += numES(mm[1]);
+    var periodoEnergia = mm[1];
+    if(periodoEnergia){
+      if(periodosVistosEnergia[periodoEnergia]) continue;
+      periodosVistosEnergia[periodoEnergia] = true;
+    }
+    sumaEnergia += numES(mm[2]);
     tramosEnergia++;
   }
 
@@ -1176,16 +1202,16 @@ function parsearFacturaLuz(texto){
   var rePot = /Potencia\s*(?:punta|contratada)?:?\s*(\d{1,2}(?:[.,]\d+)?)\s*kW\b/gi;
   var mp;
   while((mp = rePot.exec(t)) !== null){
-    potencias.push(numES(mp[1]));
+    potencias.push(numESPotencia(mp[1]));
   }
   if(potencias.length === 0){
     // Formato "P1: X kW" (Gana Energía y otras con discriminación P1/P2/P3)
     var mpP1 = t.match(/\bP1:?\s*(\d{1,2}(?:[.,]\d+)?)\s*kW\b/i);
-    if(mpP1) potencias.push(numES(mpP1[1]));
+    if(mpP1) potencias.push(numESPotencia(mpP1[1]));
   }
   if(potencias.length === 0){
     var mp2 = t.match(/Punta\s+(\d{1,2}(?:[.,]\d+)?)\s*kW\b/i);
-    if(mp2) potencias.push(numES(mp2[1]));
+    if(mp2) potencias.push(numESPotencia(mp2[1]));
   }
   if(potencias.length > 0){
     datos.potencia = potencias[0];
