@@ -830,7 +830,7 @@ if(window['pdfjsLib']){
 // === TARIFAS ===
 var T = {
   naturgy:   { n:'Naturgy',        c:'#00A651', logo:'logo_naturgy.png',     luz:{kwh:0.112,pot:0.185,exc:0.060}, gas:{RL1:{kwh:0.079533,fijo:5.15},RL2:{kwh:0.077434,fijo:9.15}} },
-  gana:      { n:'Gana Energía',   c:'#005BAC', logo:'logo_gana.png',        luz:{kwh:0.129,pot:0.178,exc:0.060}, gas:{RL1:{kwh:0.060700,fijo:3.93},RL2:{kwh:0.058600,fijo:8.11}}, promoGas:'⚠️ Tarifa INDEXADA' },
+  gana:      { n:'Gana Energía',   c:'#005BAC', logo:'logo_gana.png',        luz:{kwh:0.129,pot:0.198,exc:0.060}, gas:{RL1:{kwh:0.060700,fijo:3.93},RL2:{kwh:0.058600,fijo:8.11}}, promoGas:'⚠️ Tarifa INDEXADA' },
   total:     { n:'Total Energies', c:'#FF6600', logo:'logo_totalenergy.png', luz:{kwh:0.1190,pot:0.16244,exc:0.070},    gas:{RL1:{kwh:0.073,fijo:9.50},RL2:{kwh:0.071,fijo:14.50}}, reqPotenciaMax:4, promo:'⚠️ Sin DAZN · Solo para potencia contratada &lt;4 kW' },
   total2:    { n:'Total Energies (DAZN)', c:'#FF6600', logo:'logo_totalenergy.png', luz:{kwh:0.129,pot:0.25194,exc:0.070},    gas:{RL1:{kwh:0.073,fijo:9.50},RL2:{kwh:0.071,fijo:14.50}}, reqPotenciaMax:4, promo:'🎁 DAZN Premium GRATIS (Fútbol o Motor) · Solo potencia &lt;4 kW' },
   repsol:    { n:'Repsol',         c:'#E8001C', logo:'logo_repsol.png',      luz:{kwh:0.119,pot:0.198,exc:0.060},    gas:null, promo:'⛽ 20 € de regalo en gasolina Waylet' },
@@ -1053,10 +1053,15 @@ function numES(str){
     return parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0;
   }
   if(str.indexOf('.') !== -1){
-    // Sin coma pero con punto: en facturas españolas el punto sin coma es SIEMPRE
-    // separador de miles (p.ej. "4.828" = 4828), nunca un decimal. Si tratáramos
-    // el punto como decimal aquí, "4.828 kWh" se leería como 4,828 kWh (bug real
-    // que causaba resultados de ~4€ en vez de ~600-800€ en facturas de alto consumo).
+    // Sin coma pero con punto: puede ser separador de miles español ("4.828" = 4828,
+    // bug real que causaba resultados de ~4€ en vez de ~600-800€ en facturas de alto
+    // consumo) o separador decimal de facturas con formato anglosajón ("116.00 kWh",
+    // "95.24 €" de comercializadoras como Podo, que si no se distinguía se leían como
+    // 11600 kWh / 9524 €). Se distinguen por los dígitos tras el punto: exactamente
+    // 3 dígitos ("4.828") es agrupación de miles; 1-2 dígitos ("116.00") es decimal.
+    var partes = str.split('.');
+    var ultima = partes[partes.length - 1];
+    if(partes.length === 2 && ultima.length <= 2) return parseFloat(str) || 0;
     return parseFloat(str.replace(/\./g, '')) || 0;
   }
   return parseFloat(str) || 0;
@@ -1218,15 +1223,19 @@ function parsearFacturaLuz(texto){
   }
 
   // --- Importe total de la factura (€) ---
-  var mImporte = t.match(/TOTAL\s+IMPORTE\s+FACTURA\s*(\d{1,5}(?:[.,]\d{1,2})?)\s*€/i);
+  var mImporte = t.match(/TOTAL\s+IMPORTE\s+FACTURA\s*(\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?|\d{1,6}(?:[.,]\d{1,2})?)\s*€/i);
   if(!mImporte){
-    mImporte = t.match(/TOTAL\s+A\s+PAGAR\s*(\d{1,5}(?:[.,]\d{1,2})?)\s*€/i);
+    mImporte = t.match(/TOTAL\s+A\s+PAGAR\s*(\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?|\d{1,6}(?:[.,]\d{1,2})?)\s*€/i);
   }
   if(!mImporte){
-    mImporte = t.match(/\bTOTAL\b\s*(\d{1,5}(?:[.,]\d{1,2})?)\s*€/i);
+    // Formato "Total Factura 95.24 €" (Podo/GEO Alternativa y similares)
+    mImporte = t.match(/TOTAL\s+FACTURA\s*(\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?|\d{1,6}(?:[.,]\d{1,2})?)\s*€/i);
   }
   if(!mImporte){
-    mImporte = t.match(/Importe\s+(?:total|actual)[^\d€]{0,30}?(\d{1,5}(?:[.,]\d{1,2})?)\s*€/i);
+    mImporte = t.match(/\bTOTAL\b\s*(\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?|\d{1,6}(?:[.,]\d{1,2})?)\s*€/i);
+  }
+  if(!mImporte){
+    mImporte = t.match(/Importe\s+(?:total|actual)[^\d€]{0,30}?(\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?|\d{1,6}(?:[.,]\d{1,2})?)\s*€/i);
   }
   if(mImporte) datos.importe = numES(mImporte[1]);
 
@@ -1248,8 +1257,8 @@ function parsearFacturaGas(texto){
 
   if(/RL\.?\s*2|tarifa\s*3\.?2|>\s*5\.?000/i.test(t)) datos.tarifa = 'RL2';
 
-  var mImporte = t.match(/TOTAL\s+IMPORTE\s+FACTURA\s*(\d{1,5}(?:[.,]\d{1,2})?)\s*€/i);
-  if(!mImporte) mImporte = t.match(/\bTOTAL\b\s*(\d{1,5}(?:[.,]\d{1,2})?)\s*€/i);
+  var mImporte = t.match(/TOTAL\s+IMPORTE\s+FACTURA\s*(\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?|\d{1,6}(?:[.,]\d{1,2})?)\s*€/i);
+  if(!mImporte) mImporte = t.match(/\bTOTAL\b\s*(\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?|\d{1,6}(?:[.,]\d{1,2})?)\s*€/i);
   if(mImporte) datos.importe = numES(mImporte[1]);
 
   return datos;
