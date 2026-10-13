@@ -838,14 +838,14 @@ if(window['pdfjsLib']){
 var T = {
   naturgy:   { n:'Naturgy',        c:'#00A651', logo:'logo_naturgy.png',     luz:{kwh:0.123,pot:0.185,exc:0.060}, gas:{RL1:{kwh:0.080,fijo:5.15},RL2:{kwh:0.077,fijo:9.15}} },
   gana:      { n:'Gana Energía',   c:'#005BAC', logo:'logo_gana.png',        luz:{kwh:0.139,pot:0.198,exc:0.060}, gas:{RL1:{kwh:0.0779,fijo:3.93},RL2:{kwh:0.0758,fijo:8.11}}, promoGas:'⚠️ Tarifa INDEXADA' },
-  total:     { n:'Total Energies', c:'#FF6600', logo:'logo_totalenergy.png', luz:{kwh:0.0999,pot:0.172548,exc:0.070},    gas:{RL1:{kwh:0.0839,fijo:7},RL2:{kwh:0.0819,fijo:12}}, gasDuo:{RL1:{kwh:0.0789,fijo:7},RL2:{kwh:0.0769,fijo:12}}, reqPotenciaMax:4, promo:'⚠️ Sin DAZN · Solo para potencia contratada &lt;4 kW' },
+  total:     { n:'Total Energies', c:'#FF6600', logo:'logo_totalenergy.png', luz:{kwh:0.119,pot:0.172548,exc:0.070},    gas:{RL1:{kwh:0.0839,fijo:7},RL2:{kwh:0.0819,fijo:12}}, gasDuo:{RL1:{kwh:0.0789,fijo:7},RL2:{kwh:0.0769,fijo:12}}, reqPotenciaMax:4, promo:'⚠️ Sin DAZN · Solo para potencia contratada &lt;4 kW' },
   total2:    { n:'Total Energies (DAZN)', c:'#FF6600', logo:'logo_totalenergy.png', luz:{kwh:0.129,pot:0.25194,exc:0.070},    gas:{RL1:{kwh:0.0839,fijo:7},RL2:{kwh:0.0819,fijo:12}}, gasDuo:{RL1:{kwh:0.0789,fijo:7},RL2:{kwh:0.0769,fijo:12}}, reqPotenciaMax:4, promo:'🎁 DAZN Premium GRATIS (Fútbol o Motor) · Solo potencia &lt;4 kW' },
   repsol:    { n:'Repsol',         c:'#E8001C', logo:'logo_repsol.png',      luz:{kwh:0.129,pot:0.180274,exc:0.060},    gas:{RL1:{kwh:0.0849,fijo:6.90},RL2:{kwh:0.0849,fijo:13.90}}, promoGas:'⚠️ Tarifa INDEXADA', promo:'⛽ 20 € de regalo en gasolina Waylet' },
   iberdrola: { n:'Iberdrola',      c:'#006EB6', logo:'logo_iberdrola.png',   luz:{kwh:0.1652264,pot:0.195835,exc:0.050},    gas:{RL1:{kwh:0.095728,fijo:6.25},RL2:{kwh:0.090965,fijo:11.18}} },
   niba:      { n:'Niba',           c:'#2E7D32', logo:'logo_niba.png',        luz:{kwh:0.119,pot:0.182,exc:0.060},    gas:{RL1:{kwh:0.085,fijo:6.03},RL2:{kwh:0.089,fijo:11.30}} },
   endesa:    { n:'Endesa',         c:'#00B451', logo:'logo_endesa.png',      luz:{kwh:0.128561,pot:0.187332,exc:0.060},    gas:{RL1:{kwh:0.095374,fijo:7.181},RL2:{kwh:0.09504,fijo:14.60}}, promo:'25% de descuento el primer año', promoGas:'Dto. 10% el 1er año' },
   nordy:     { n:'Nordy',          c:'#003B2F', logo:'logo_nordy.png',       luz:{kwh:0.143,pot:0.180,exc:0.050},        gas:null, promo:'ℹ️ Precio energía 0,119 €/kWh + Gastos de gestión 0,024 €/kWh (revisable trimestralmente)' },
-  imagina:   { n:'Imagina Energía', c:'#EF4123', logo:'logo_imagina.png',    luz:{kwh:0.099,pot:0.20,exc:0.04},     gas:null, promo:'🔥 -20% en energía el primer año (antes 0,123 €/kWh) · Precio fijo 24h · Compatible con autoconsumo · 🔋 Batería virtual: excedentes a 0,04 €/kWh' }
+  imagina:   { n:'Imagina Energía', c:'#EF4123', logo:'logo_imagina.png',    luz:{kwh:0.099,pot:0.20,exc:0.04},     gas:null, promo:'🔥 -20% en energía el primer año (antes 0,123 €/kWh) · Precio fijo 24h · Compatible con autoconsumo · 🔋 Sin batería virtual: excedentes a 0,04 €/kWh' }
 };
 var IMP_E = 0.0511, IMP_H = 0.00234, ALQL = 0.81, ALQG = 1.20;
 var BONO_DIA = 0.024688, ALQL_DIA = 0.02663014;
@@ -1102,6 +1102,11 @@ function parsearFacturaLuz(texto){
   // "kWh x precio" para no confundirla con la nota al pie "(1) Compensación de excedentes: ahorro...".
   var mExc = t.match(/Compensaci[oó]n\s+de\s+excedentes\s*(?:\(\d\))?\s*-?\s*(\d{1,5}(?:[.,]\d+)?)\s*kWh\s*x/i);
   if(mExc) datos.excedentes = numES(mExc[1]);
+  if(!mExc){
+    // Formato "ENERGÍA EXCEDENTARIA ... Excedentes 257,696 kWh x -0,016535 €/kWh" (Factor Energía)
+    var mExc2 = t.match(/\bExcedentes\s+(\d{1,5}(?:[.,]\d+)?)\s*kWh\s*x\s*-?\s*\d/i);
+    if(mExc2) datos.excedentes = numES(mExc2[1]);
+  }
 
   // --- Consumo total de energía (kWh) ---
   // Las facturas suelen desglosar el consumo en varios tramos o periodos de precio
@@ -1139,6 +1144,20 @@ function parsearFacturaLuz(texto){
     }
     sumaEnergia += numES(mm[2]);
     tramosEnergia++;
+  }
+
+  if(tramosEnergia === 0){
+    // Formato "P1 9,743x0,181849€/kWh" (kWh primero y precio después, p.ej. Factor Energía).
+    // Se exige "/kWh" tras el precio para no confundirlo con la potencia ("P1 3,450x2,419275€/kW mes").
+    var rePx = /\bP([1-6])\s+(\d{1,5}(?:[.,]\d+)?)\s*x\s*\d[\d.,]*\s*€?\s*\/\s*kWh/gi;
+    var mpx, periodosPx = {};
+    while((mpx = rePx.exec(t)) !== null){
+      if(!periodosPx[mpx[1]]){
+        periodosPx[mpx[1]] = true;
+        sumaEnergia += numES(mpx[2]);
+        tramosEnergia++;
+      }
+    }
   }
 
   if(tramosEnergia === 0){
@@ -1226,7 +1245,19 @@ function parsearFacturaLuz(texto){
     datos.dias = sumaDiasUnicos;
   } else {
     var mDias = t.match(/D[IÍ]AS\s+FACTURADOS:?\s*(\d{1,3})/i);
-    if(mDias) datos.dias = parseInt(mDias[1], 10);
+    if(mDias){
+      datos.dias = parseInt(mDias[1], 10);
+    } else {
+      // "Periodo de facturación: Del 14/08/2026 al 31/08/2026" o "Periodo de facturación: 01/08/2026 a 31/08/2026"
+      // (sin "N días"): se cuentan ambos días extremos
+      var mDel = t.match(/(?:Per[ií]odo\s+de\s+facturaci[oó]n:?\s*(?:Del\s+)?|\bDel\s+)(\d{1,2})\/(\d{1,2})\/(\d{4})\s+al?\s+(\d{1,2})\/(\d{1,2})\/(\d{4})/i);
+      if(mDel){
+        var d1 = Date.UTC(+mDel[3], +mDel[2]-1, +mDel[1]);
+        var d2 = Date.UTC(+mDel[6], +mDel[5]-1, +mDel[4]);
+        var nd = Math.round((d2 - d1) / 86400000) + 1;
+        if(nd > 0 && nd < 400) datos.dias = nd;
+      }
+    }
   }
 
   // --- Potencia contratada (kW) ---
@@ -1264,6 +1295,10 @@ function parsearFacturaLuz(texto){
   if(!mImporte){
     // Formato "Total Factura 95.24 €" (Podo/GEO Alternativa y similares)
     mImporte = t.match(/TOTAL\s+FACTURA\s*(\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?|\d{1,6}(?:[.,]\d{1,2})?)\s*€/i);
+  }
+  if(!mImporte){
+    // Importe antes de la etiqueta: "35,40 €Total Factura" (Factor Energía)
+    mImporte = t.match(/(\d{1,3}(?:\.\d{3})*,\d{2})\s*€\s*Total\s+Factura/i);
   }
   if(!mImporte){
     mImporte = t.match(/\bTOTAL\b\s*(\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?|\d{1,6}(?:[.,]\d{1,2})?)\s*€/i);
@@ -1391,6 +1426,7 @@ function computarResultados(tipoFactura, kwhLuz, pot, kwhGas, tarGas, dias, impo
     var costePotencia = 0, costeEnergiaLuz = 0, costeEnergiaGas = 0, costeFijoGas = 0;
     var totalLuz = 0, totalGas = 0;
     var precioKwhLuz = 0, precioKwLuzDia = 0, precioKwhGas = 0;
+    var descExc = 0;
 
     if(quiereLuz && t.luz){
       precioKwhLuz = t.luz.kwh;
@@ -1401,8 +1437,9 @@ function computarResultados(tipoFactura, kwhLuz, pot, kwhGas, tarGas, dias, impo
       costePotencia = t.luz.pot * pot * dias;
       costeEnergiaLuz = t.luz.kwh * kwhLuz;
       // Compensación de excedentes al precio de cada comercializadora (t.luz.exc €/kWh).
-      // Nunca puede dejar el término de energía por debajo de 0 (no se cobra por verter de más).
-      var descExc = Math.min(excedentes * (t.luz.exc || 0), costePotencia + costeEnergiaLuz);
+      // Nunca puede superar el coste de la energía consumida (RD 244/2019): el término de energía
+      // no baja de 0 y la compensación no abarata la potencia.
+      descExc = Math.min(excedentes * (t.luz.exc || 0), costeEnergiaLuz);
       var baseImpE = costePotencia + costeEnergiaLuz - descExc;
       var imp = baseImpE * IMP_E;
       // Bono social (0,024688 €/día) y alquiler de contador (0,02663014 €/día), como en la factura
@@ -1426,6 +1463,8 @@ function computarResultados(tipoFactura, kwhLuz, pot, kwhGas, tarGas, dias, impo
       gas: totalGas * (1 + tasa),
       costePotencia: costePotencia * (1 + tasa),
       costeEnergiaLuz: costeEnergiaLuz * (1 + tasa),
+      descExc: descExc * (1 + tasa),
+      precioExc: (t.luz && t.luz.exc) || 0,
       costeFijoGas: costeFijoGas * (1 + tasa),
       costeEnergiaGas: costeEnergiaGas * (1 + tasa),
       precioKwhLuz: precioKwhLuz,
@@ -1439,13 +1478,16 @@ function computarResultados(tipoFactura, kwhLuz, pot, kwhGas, tarGas, dias, impo
   var winner = sorted[0];
   var ahorro = importeActual - resultados[winner].total;
 
-  mostrarResultados(resultados, sorted, winner, ahorro, tipoFactura, kwhLuz, pot, kwhGas, tarGas, importeActual, restringidos);
+  mostrarResultados(resultados, sorted, winner, ahorro, tipoFactura, kwhLuz, pot, kwhGas, tarGas, importeActual, restringidos, excedentes);
 }
 
 function fmt(n){ return n.toFixed(2).replace('.',',') + ' €'; }
+// Número con coma decimal y sin ceros sobrantes (257,696 kWh se muestra como 257,7; evita "257.696", que en español parece 257 mil)
+function fmtN(n){ return String(Math.round(n*100)/100).replace('.',','); }
 function fmt4(n){ return n.toFixed(6).replace('.',',') + ' €'; }
 
-function mostrarResultados(res, sorted, winner, ahorro, tipoFactura, kwhLuz, pot, kwhGas, tarGas, importeActual, restringidos){
+function mostrarResultados(res, sorted, winner, ahorro, tipoFactura, kwhLuz, pot, kwhGas, tarGas, importeActual, restringidos, excedentes){
+  excedentes = excedentes || 0;
   document.getElementById('loadingWrap').style.display = 'none';
   document.getElementById('btnAnalizar').disabled = false;
 
@@ -1472,11 +1514,13 @@ function mostrarResultados(res, sorted, winner, ahorro, tipoFactura, kwhLuz, pot
                 tipoFactura === 'gas' ? '🔥 Solo Gas (' + tarGas + ')' : '⚡ Solo Luz';
   document.getElementById('notaBox').innerHTML =
     '🐾 <strong>Leído de tu factura:</strong> ' + modoTxt +
-    (kwhLuz > 0 ? ' · Consumo luz: <strong>' + kwhLuz + ' kWh/mes</strong>' : '') +
-    (kwhGas > 0 ? ' · Gas: <strong>' + kwhGas + ' kWh/mes</strong>' : '') +
-    (pot > 0 ? ' · Potencia: <strong>' + pot + ' kW</strong>' : '') +
+    (kwhLuz > 0 ? ' · Consumo luz: <strong>' + fmtN(kwhLuz) + ' kWh/mes</strong>' : '') +
+    (excedentes > 0 && tipoFactura !== 'gas' ? ' · Excedentes: <strong>' + fmtN(excedentes) + ' kWh</strong>' : '') +
+    (kwhGas > 0 ? ' · Gas: <strong>' + fmtN(kwhGas) + ' kWh/mes</strong>' : '') +
+    (pot > 0 ? ' · Potencia: <strong>' + fmtN(pot) + ' kW</strong>' : '') +
     ' · Importe actual: <strong>' + fmt(importeActual) + '</strong>' +
     '<br>💡 Precios orientativos · Impuesto aplicado: <strong>' + nombreImpuesto() + '</strong>' +
+    (excedentes > 0 && tipoFactura !== 'gas' ? '<br>☀️ Autoconsumo: excedentes compensados al precio de cada comercializadora, hasta el coste de la energía consumida.' : '') +
     (restringidos && restringidos.length ? '<br>🚫 ' + restringidos.join(' · ') + '.' : '');
 
   // Cards
@@ -1508,6 +1552,9 @@ function mostrarResultados(res, sorted, winner, ahorro, tipoFactura, kwhLuz, pot
     if(r.luz > 0){
       desgloseHtml += '<div class="tc-row"><span class="l">⚡ Potencias (€/kW·día)</span><span class="v">' + fmt4(r.precioKwLuzDia) + '</span></div>';
       desgloseHtml += '<div class="tc-row"><span class="l">⚡ Energía (€/kWh)</span><span class="v">' + fmt4(r.precioKwhLuz) + '</span></div>';
+      if(r.descExc > 0){
+        desgloseHtml += '<div class="tc-row"><span class="l">☀️ Excedentes (' + fmtN(excedentes) + ' kWh × ' + fmt4(r.precioExc) + ')</span><span class="v">−' + fmt(r.descExc) + '</span></div>';
+      }
     }
     if(r.gas > 0){
       desgloseHtml += '<div class="tc-row"><span class="l">🔥 Término fijo gas (€/mes)</span><span class="v">' + fmt(r.costeFijoGas) + '</span></div>';
@@ -1539,7 +1586,7 @@ function mostrarResultados(res, sorted, winner, ahorro, tipoFactura, kwhLuz, pot
   // Guardamos la última comparativa calculada para poder generar el PDF con estos mismos datos
   window._ULTIMO = {
     res:res, sorted:sorted, winner:winner, ahorro:ahorro, tipoFactura:tipoFactura,
-    kwhLuz:kwhLuz, pot:pot, kwhGas:kwhGas, tarGas:tarGas, importeActual:importeActual
+    kwhLuz:kwhLuz, pot:pot, kwhGas:kwhGas, tarGas:tarGas, importeActual:importeActual, excedentes:excedentes
   };
 
   // Scroll to results
@@ -1646,6 +1693,7 @@ function generarPDFComparativa(P, logos){
       rows.push({ l:'Energía luz (€/kWh)', v: fmt4(r.precioKwhLuz) });
       rows.push({ l:'Coste potencia', v: fmt(r.costePotencia) });
       rows.push({ l:'Coste energía luz', v: fmt(r.costeEnergiaLuz) });
+      if(r.descExc > 0) rows.push({ l:'Excedentes (' + fmtN(P.excedentes) + ' kWh x ' + fmt4(r.precioExc) + ')', v: '- ' + fmt(r.descExc) });
     }
     if(r.gas > 0){
       rows.push({ l:'Término fijo gas', v: fmt(r.costeFijoGas) });
@@ -1706,7 +1754,7 @@ function generarPDFComparativa(P, logos){
     if(hasProm){
       doc.setFillColor(238,244,255); doc.roundedRect(x+5,cy-2,cw-10,8,1.5,1.5,'F');
       doc.setFont('helvetica','italic'); doc.setFontSize(6.8); doc.setTextColor(59,79,204);
-      doc.text((t.promo||'').replace(/[^ -~ -ÿ]/g,''), x+cw/2, cy+3.5, {align:'center', maxWidth:cw-14});
+      doc.text((t.promo||'').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&').replace(/[^ -~ -ÿ]/g,''), x+cw/2, cy+3.5, {align:'center', maxWidth:cw-14});
       cy += 10;
     }
 
@@ -1730,9 +1778,10 @@ function generarPDFComparativa(P, logos){
   var modoTxt = P.tipoFactura === 'ambos' ? 'Luz + Gas (' + P.tarGas + ')' :
                 P.tipoFactura === 'gas' ? 'Solo Gas (' + P.tarGas + ')' : 'Solo Luz';
   var resumen = modoTxt +
-    (P.kwhLuz > 0 ? ' · Consumo luz: ' + P.kwhLuz + ' kWh/mes' : '') +
-    (P.kwhGas > 0 ? ' · Gas: ' + P.kwhGas + ' kWh/mes' : '') +
-    (P.pot > 0 ? ' · Potencia: ' + P.pot + ' kW' : '');
+    (P.kwhLuz > 0 ? ' · Consumo luz: ' + fmtN(P.kwhLuz) + ' kWh/mes' : '') +
+    (P.excedentes > 0 && P.tipoFactura !== 'gas' ? ' · Excedentes: ' + fmtN(P.excedentes) + ' kWh' : '') +
+    (P.kwhGas > 0 ? ' · Gas: ' + fmtN(P.kwhGas) + ' kWh/mes' : '') +
+    (P.pot > 0 ? ' · Potencia: ' + fmtN(P.pot) + ' kW' : '');
 
   cabecera();
   var now = new Date();
