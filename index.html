@@ -316,6 +316,19 @@ main{max-width:700px;margin:28px auto 100px;padding:0 14px}
   100%{filter:brightness(1)}
 }
 
+.redir-aviso{
+  display:none;margin-top:20px;padding:20px 18px;text-align:center;
+  background:#fff7e6;border:2px solid var(--orange);border-radius:14px;
+  font-family:'Open Sans',sans-serif;font-size:1rem;line-height:1.5;color:#333;
+}
+.redir-aviso h3{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.2rem;margin-bottom:8px;color:var(--red)}
+.redir-aviso a.redir-btn{
+  display:inline-block;margin-top:14px;padding:14px 22px;border-radius:12px;
+  background:linear-gradient(135deg,var(--red),var(--orange));color:#fff;
+  font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem;text-decoration:none;
+  box-shadow:0 6px 20px rgba(215,43,43,.35);
+}
+
 .btn-analizar{
   width:100%;
   margin-top:20px;
@@ -735,6 +748,8 @@ footer a{color:var(--orange);text-decoration:underline;cursor:pointer}
   <button class="btn-analizar" id="btnAnalizar" disabled>
     🔍 Comparar mis tarifas ahora
   </button>
+
+  <div class="redir-aviso" id="avisoRedirigir" role="alert"></div>
 </div>
 
 <!-- RESULTS -->
@@ -837,16 +852,22 @@ if(window['pdfjsLib']){
 // === TARIFAS ===
 var T = {
   naturgy:   { n:'Naturgy',        c:'#00A651', logo:'logo_naturgy.png',     luz:{kwh:0.123,pot:0.185,exc:0.060}, gas:{RL1:{kwh:0.080,fijo:5.15},RL2:{kwh:0.077,fijo:9.15}} },
+  // Tarifa 2.0TD para EMPRESAS (titular con CIF). Potencia = P1 0,122 + P2 0,043 (el comparador suma P1+P2 en un único €/kW·día).
+  // Solo se usa en modo empresa (ver modoEmpresa); excedentes: pendiente de confirmar, se usa el mismo precio que Naturgy particular.
+  naturgyEmpresa: { n:'Naturgy', c:'#00A651', logo:'logo_naturgy.png', luz:{kwh:0.166,pot:0.165,exc:0.060}, gas:null, soloEmpresa:true, promo:'🏢 Tarifa 2.0TD para empresas' },
   gana:      { n:'Gana Energía',   c:'#005BAC', logo:'logo_gana.png',        luz:{kwh:0.139,pot:0.198,exc:0.060}, gas:{RL1:{kwh:0.0779,fijo:3.93},RL2:{kwh:0.0758,fijo:8.11}}, promoGas:'⚠️ Tarifa INDEXADA' },
-  total:     { n:'Total Energies', c:'#FF6600', logo:'logo_totalenergy.png', luz:{kwh:0.119,pot:0.172548,exc:0.070},    gas:{RL1:{kwh:0.0839,fijo:7},RL2:{kwh:0.0819,fijo:12}}, gasDuo:{RL1:{kwh:0.0789,fijo:7},RL2:{kwh:0.0769,fijo:12}}, reqPotenciaMax:4, promo:'⚠️ Sin DAZN · Solo para potencia contratada &lt;4 kW' },
-  total2:    { n:'Total Energies (DAZN)', c:'#FF6600', logo:'logo_totalenergy.png', luz:{kwh:0.129,pot:0.25194,exc:0.070},    gas:{RL1:{kwh:0.0839,fijo:7},RL2:{kwh:0.0819,fijo:12}}, gasDuo:{RL1:{kwh:0.0789,fijo:7},RL2:{kwh:0.0769,fijo:12}}, reqPotenciaMax:4, promo:'🎁 DAZN Premium GRATIS (Fútbol o Motor) · Solo potencia &lt;4 kW' },
-  repsol:    { n:'Repsol',         c:'#E8001C', logo:'logo_repsol.png',      luz:{kwh:0.159,pot:0.180,exc:0.060},    gas:{RL1:{kwh:0.0849,fijo:6.90},RL2:{kwh:0.0849,fijo:13.90}}, promoGas:'⚠️ Tarifa INDEXADA', promo:'⛽ 100€ de regalo en gasolina Waylet al contratar la luz y 150€ al contratar luz + gas + SVA.' },
+  total:     { n:'Total Energies', c:'#FF6600', logo:'logo_totalenergy.png', luz:{kwh:0.144,pot:0.208,exc:0.070},    gas:{RL1:{kwh:0.0839,fijo:7},RL2:{kwh:0.0819,fijo:12}}, gasDuo:{RL1:{kwh:0.0789,fijo:7},RL2:{kwh:0.0769,fijo:12}}, reqPotenciaMax:4, promo:'⚠️ Sin DAZN · Solo para potencia contratada &lt;4 kW' },
+  total2:    { n:'Total Energies (DAZN)', c:'#FF6600', logo:'logo_totalenergy.png', luz:{kwh:0.154,pot:0.297773,exc:0.070},    gas:{RL1:{kwh:0.0839,fijo:7},RL2:{kwh:0.0819,fijo:12}}, gasDuo:{RL1:{kwh:0.0789,fijo:7},RL2:{kwh:0.0769,fijo:12}}, reqPotenciaMax:4, promo:'🎁 DAZN Premium GRATIS (Fútbol o Motor) · Solo potencia &lt;4 kW' },
+  repsol:    { n:'Repsol',         c:'#E8001C', logo:'logo_repsol.png',      luz:{kwh:0.149,pot:0.180,exc:0.060},    gas:{RL1:{kwh:0.0849,fijo:6.90},RL2:{kwh:0.0849,fijo:13.90}}, promoGas:'⚠️ Tarifa INDEXADA', promo:'⛽ 100€ de regalo en gasolina Waylet al contratar la luz y 150€ al contratar luz + gas + SVA.' },
   iberdrola: { n:'Iberdrola',      c:'#006EB6', logo:'logo_iberdrola.png',   luz:{kwh:0.1652264,pot:0.195835,exc:0.050},    gas:{RL1:{kwh:0.095728,fijo:6.25},RL2:{kwh:0.090965,fijo:11.18}} },
   niba:      { n:'Niba',           c:'#2E7D32', logo:'logo_niba.png',        luz:{kwh:0.123,pot:0.182,exc:0.060},    gas:{RL1:{kwh:0.085,fijo:6.03},RL2:{kwh:0.089,fijo:11.30}} },
-  endesa:    { n:'Endesa',         c:'#00B451', logo:'logo_endesa.png',      luz:{kwh:0.167,pot:0.187332,exc:0.060},    gas:{RL1:{kwh:0.095374,fijo:7.181},RL2:{kwh:0.09504,fijo:14.60}}, promo:'25% de descuento el primer año', promoGas:'Dto. 10% el 1er año' },
+  endesa:    { n:'Endesa',         c:'#00B451', logo:'logo_endesa.png',      luz:{kwh:0.167,pot:0.187332,exc:0.060},    gas:{RL1:{kwh:0.099900,fijo:7.643825},RL2:{kwh:0.099500,fijo:14.88}}, promo:'10% de descuento el primer año', promoGas:'Dto. 10% el 1er año' },
   nordy:     { n:'Nordy',          c:'#003B2F', logo:'logo_nordy.png',       luz:{kwh:0.143,pot:0.180,exc:0.050},        gas:null, promo:'ℹ️ Precio energía 0,119 €/kWh + Gastos de gestión 0,024 €/kWh (revisable trimestralmente)' },
-  imagina:   { n:'Imagina Energía', c:'#EF4123', logo:'logo_imagina.png',    luz:{kwh:0.099,pot:0.20,exc:0.04},     gas:null, promo:'🔥 -20% en energía el primer año (antes 0,123 €/kWh) · Precio fijo 24h · Compatible con autoconsumo · 🔋 Sin batería virtual: excedentes a 0,04 €/kWh' }
+  imagina:   { n:'Imagina Energía', c:'#EF4123', logo:'logo_imagina.png',    luz:{kwh:0.099,pot:0.2438,exc:0.04},     gas:null, promo:'🔥 -20% en energía el primer año (antes 0,123 €/kWh) · Precio fijo 24h · Compatible con autoconsumo · 🔋 Sin batería virtual: excedentes a 0,04 €/kWh' }
 };
+// Modo empresa: si el titular de la factura 2.0TD es una empresa solo se comparan las comercializadoras con tarifa 2.0TD de empresa
+var modoEmpresa = false;
+var COMERCIALIZADORAS_EMPRESA_20 = ['naturgyEmpresa','gana'];
 var IMP_E = 0.0511, IMP_H = 0.00234, ALQL = 0.81, ALQG = 1.20;
 var BONO_DIA = 0.024688, ALQL_DIA = 0.02663014;
 var IVA_PENINSULA = 0.21, IGIC_CANARIAS = 0.07;
@@ -938,6 +959,7 @@ document.getElementById('btnAnalizar').addEventListener('click', analizar);
 function analizar(){
   if(!fileLuz && !fileGas){ alert('¡Pon al menos una factura primero!'); return; }
   document.getElementById('btnAnalizar').disabled = true;
+  document.getElementById('avisoRedirigir').style.display = 'none';
   document.getElementById('loadingWrap').style.display = 'block';
   document.getElementById('results').style.display = 'none';
   document.getElementById('ctaSiempre').style.display = 'none';
@@ -1333,7 +1355,88 @@ function parsearFacturaGas(texto){
   return datos;
 }
 
+// === DETECCIÓN 2.0TD / 3.0TD Y TITULAR EMPRESA ===
+// Este comparador solo calcula bien facturas 2.0TD de particulares. Las empresas pagan
+// precios distintos y las facturas 3.0TD tienen otros periodos, así que en esos casos no se
+// dan resultados y se envía al cliente al comparador de empresas (3.0TD).
+var URL_COMPARADOR_EMPRESAS = 'https://pymefacturasenergia.tecomparotodo.es/';
+
+// Devuelve '2.0', '3.0', 'otra' (6.1TD…) o '' si la factura no indica la tarifa de acceso.
+function detectarTarifaAcceso(texto){
+  var t = (texto || '').replace(/\s+/g, ' ');
+  var re = /\b([2-6])\s?\.\s?([0-4])\s?(?:TD|A)\b/gi, m, vistas = {};
+  while((m = re.exec(t)) !== null){ vistas[m[1] + '.' + m[2]] = true; }
+  // "3.0TD" o "6.1TD" en cualquier parte de la factura manda sobre un "2.0TD" suelto
+  // (las notas legales de algunas facturas 3.0 mencionan también el peaje 2.0TD)
+  if(vistas['3.0']) return '3.0';
+  if(vistas['6.1'] || vistas['6.2'] || vistas['6.3'] || vistas['6.4']) return 'otra';
+  if(vistas['2.0']) return '2.0';
+  return '';
+}
+
+// Devuelve true si el titular del contrato es una empresa (CIF/forma societaria).
+// Solo se mira el NIF/CIF que acompaña a "Titular": el CIF de la comercializadora
+// (pie de página, "Factor Energia, S.A. CIF A-61893871") no cuenta.
+function titularEsEmpresa(texto){
+  var t = (texto || '').replace(/\s+/g, ' ');
+  // CIF (letra + 7 dígitos + control) o NIF/NIE (8 dígitos + letra, X/Y/Z + 7 dígitos + letra)
+  var ID = '((?:[A-Z]\\s?-?\\s?\\d{7}-?[0-9A-Z]|[0-9XYZKLM]\\d{7}-?[A-Z])(?![A-Za-z0-9]))';
+  var LBL = '(?:CIF\\s*\\/\\s*NIF|NIF\\s*\\/\\s*CIF|N\\.?\\s?I\\.?\\s?F\\.?|C\\.?\\s?I\\.?\\s?F\\.?|NIE|DNI)';
+  var candidatos = [], mm;
+  // "NIF titular del contrato: 47208794Y"
+  var r1 = new RegExp('(?:NIF|CIF|DNI)\\s*titular(?:\\s+del\\s+contrato)?\\s*:?\\s*' + ID, 'i');
+  if((mm = t.match(r1))) candidatos.push({id: mm[1], nombre: ''});
+  // "Titular: Super Ponce Sl CIF/NIF: B06939862" / "Titular del contrato: NOMBRE NIF: 2996…"
+  var r2 = new RegExp('Titular(?:\\s+del\\s+contrato)?\\s*:?\\s*((?:(?!' + LBL + ').){1,90}?)\\s*' + LBL + '\\s*:?\\s*' + ID, 'i');
+  if((mm = t.match(r2))) candidatos.push({id: mm[2], nombre: mm[1]});
+  // "Titular: NOMBRE" sin NIF al lado (la factura no lo trae en esa línea)
+  var r3 = /Titular(?:\s+del\s+contrato)?\s*:\s*((?:(?!NIF|CIF|Direcci[oó]n|Domicilio|N[ºo°]).){2,70})/i;
+  if((mm = t.match(r3))) candidatos.push({id: '', nombre: mm[1]});
+
+  var SOCIEDAD = /(?:\b|^)(?:S\s?\.?\s?L\s?\.?\s?U?\s?\.?|S\s?\.?\s?A\s?\.?\s?U?\s?\.?|S\s?\.?\s?L\s?\.?\s?L\s?\.?|S\.?\s?COOP\.?|S\.?\s?C\.?\s?P\.?|C\.?\s?B\.?|COMUNIDAD\s+DE\s+PROPIETARIOS|FUNDACI[OÓ]N|ASOCIACI[OÓ]N|AYUNTAMIENTO|SOCIEDAD|COOPERATIVA)\s*$/i;
+  for(var i = 0; i < candidatos.length; i++){
+    var id = (candidatos[i].id || '').toUpperCase().replace(/[\s\-\.]/g, '');
+    if(id){
+      if(/^[ABCDEFGHJNPQRSUVW]\d{7}[0-9A-J]$/.test(id)) return true;   // CIF de entidad
+      if(/^(?:\d{8}[A-Z]|[XYZ]\d{7}[A-Z]|[KLM]\d{7}[A-Z0-9])$/.test(id)) return false; // NIF/NIE de persona
+    }
+    var nombre = (candidatos[i].nombre || '').trim();
+    if(nombre && (SOCIEDAD.test(nombre) || /\b(?:S\.?L\.?U?|S\.?A\.?U?)\b\.?\s*$/i.test(nombre))) return true;
+  }
+  return false;
+}
+
+function mostrarAvisoRedirigir(titulo, mensaje){
+  document.getElementById('loadingWrap').style.display = 'none';
+  document.getElementById('btnAnalizar').disabled = false;
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('ctaSiempre').style.display = 'none';
+  var box = document.getElementById('avisoRedirigir');
+  box.innerHTML = '<h3>' + titulo + '</h3><p>' + mensaje + '</p>' +
+    '<a class="redir-btn" href="' + URL_COMPARADOR_EMPRESAS + '">🏢 Ir al comparador de empresas</a>';
+  box.style.display = 'block';
+  document.getElementById('perroMsg').innerHTML = '🐾 Esta factura hay que compararla en el comparador de empresas.';
+  if(box.scrollIntoView) box.scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+// Devuelve true (y muestra el aviso) si la factura de luz es 3.0TD o superior. Activa modoEmpresa si es una 2.0TD de empresa.
+function bloquearSiNoEs20Particular(textoLuz){
+  var acceso = detectarTarifaAcceso(textoLuz);
+  if(acceso === '3.0' || acceso === 'otra'){
+    mostrarAvisoRedirigir('Esta factura es una ' + (acceso === '3.0' ? '3.0TD' : 'tarifa de alta tensión') + ' 🏢',
+      'Hemos detectado que tu factura no es una 2.0TD, sino de las que se usan en empresas y negocios. ' +
+      'Este comparador es solo para tarifas 2.0TD, así que no te daríamos un resultado fiable. ' +
+      'Compárala en nuestro comparador de empresas (3.0TD).');
+    return true;
+  }
+  // 2.0TD con titular empresa: no se bloquea; se comparan solo las tarifas 2.0TD de empresa
+  modoEmpresa = ((acceso === '2.0' || acceso === '') && titularEsEmpresa(textoLuz));
+  return false;
+}
+
 function procesarDatosLeidos(tipoFactura, textoLuz, textoGas){
+  modoEmpresa = false;
+  if((tipoFactura === 'luz' || tipoFactura === 'ambos') && bloquearSiNoEs20Particular(textoLuz)) return;
   var kwhLuz = 0, potencia = 0, kwhGas = 0, tarGas = 'RL1';
   var excedentes = 0;
   var dias = 30;
@@ -1408,6 +1511,7 @@ function computarResultados(tipoFactura, kwhLuz, pot, kwhGas, tarGas, dias, impo
 
   // Solo comparamos compañías que ofrezcan lo que el cliente necesita
   var keys = Object.keys(T).filter(function(k){
+    if(modoEmpresa ? COMERCIALIZADORAS_EMPRESA_20.indexOf(k) < 0 : T[k].soloEmpresa) return false;
     if(quiereLuz && T[k].reqPotenciaMax && pot >= T[k].reqPotenciaMax) return false;
     if(quiereLuz && quiereGas) return T[k].luz && T[k].gas && T[k].gas[tarGas];
     if(quiereLuz) return !!T[k].luz;
@@ -1415,7 +1519,7 @@ function computarResultados(tipoFactura, kwhLuz, pot, kwhGas, tarGas, dias, impo
     return false;
   });
 
-  var restringidos = quiereLuz ? Object.keys(T).filter(function(k){
+  var restringidos = (quiereLuz && !modoEmpresa) ? Object.keys(T).filter(function(k){
     return T[k].reqPotenciaMax && pot >= T[k].reqPotenciaMax;
   }).map(function(k){
     return T[k].n + ' (solo para potencia contratada &lt;' + T[k].reqPotenciaMax + ' kW)';
@@ -1521,6 +1625,7 @@ function mostrarResultados(res, sorted, winner, ahorro, tipoFactura, kwhLuz, pot
     ' · Importe actual: <strong>' + fmt(importeActual) + '</strong>' +
     '<br>💡 Precios orientativos · Impuesto aplicado: <strong>' + nombreImpuesto() + '</strong>' +
     (excedentes > 0 && tipoFactura !== 'gas' ? '<br>☀️ Autoconsumo: excedentes compensados al precio de cada comercializadora, hasta el coste de la energía consumida.' : '') +
+    (modoEmpresa ? '<br>🏢 <strong>Titular empresa detectado:</strong> mostramos solo las tarifas 2.0TD para empresas (los precios de empresa son distintos a los de particulares).' + (tipoFactura !== 'luz' ? ' Para el gas de empresas solo comparamos Gana Energía.' : '') : '') +
     (restringidos && restringidos.length ? '<br>🚫 ' + restringidos.join(' · ') + '.' : '');
 
   // Cards
