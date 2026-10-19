@@ -854,7 +854,7 @@ var T = {
   naturgy:   { n:'Naturgy',        c:'#00A651', logo:'logo_naturgy.png',     luz:{kwh:0.123,pot:0.185,exc:0.060}, gas:{RL1:{kwh:0.080,fijo:5.15},RL2:{kwh:0.077,fijo:9.15}} },
   // Tarifa 2.0TD para EMPRESAS (titular con CIF). Potencia = P1 0,122 + P2 0,043 (el comparador suma P1+P2 en un único €/kW·día).
   // Solo se usa en modo empresa (ver modoEmpresa); excedentes: pendiente de confirmar, se usa el mismo precio que Naturgy particular.
-  naturgyEmpresa: { n:'Naturgy', c:'#00A651', logo:'logo_naturgy.png', luz:{kwh:0.166,pot:0.165,exc:0.060}, gas:null, soloEmpresa:true, promo:'🏢 Tarifa 2.0TD para empresas' },
+  naturgyEmpresa: { n:'Naturgy', c:'#00A651', logo:'logo_naturgy.png', luz:{kwh:0.123,pot:0.185,exc:0.060}, gas:null, soloEmpresa:true, promo:'🏢 Tarifa 2.0TD para empresas' },
   gana:      { n:'Gana Energía',   c:'#005BAC', logo:'logo_gana.png',        luz:{kwh:0.139,pot:0.198,exc:0.060}, gas:{RL1:{kwh:0.0779,fijo:3.93},RL2:{kwh:0.0758,fijo:8.11}}, promoGas:'⚠️ Tarifa INDEXADA' },
   total:     { n:'Total Energies', c:'#FF6600', logo:'logo_totalenergy.png', luz:{kwh:0.144,pot:0.208,exc:0.070},    gas:{RL1:{kwh:0.0839,fijo:7},RL2:{kwh:0.0819,fijo:12}}, gasDuo:{RL1:{kwh:0.0789,fijo:7},RL2:{kwh:0.0769,fijo:12}}, reqPotenciaMax:4, promo:'⚠️ Sin DAZN · Solo para potencia contratada &lt;4 kW' },
   total2:    { n:'Total Energies (DAZN)', c:'#FF6600', logo:'logo_totalenergy.png', luz:{kwh:0.154,pot:0.297773,exc:0.070},    gas:{RL1:{kwh:0.0839,fijo:7},RL2:{kwh:0.0819,fijo:12}}, gasDuo:{RL1:{kwh:0.0789,fijo:7},RL2:{kwh:0.0769,fijo:12}}, reqPotenciaMax:4, promo:'🎁 DAZN Premium GRATIS (Fútbol o Motor) · Solo potencia &lt;4 kW' },
@@ -1216,6 +1216,22 @@ function parsearFacturaLuz(texto){
     }
   }
 
+  if(tramosEnergia === 0){
+    // Formato "Costes Energía1 179 0,209171 ..." / "Costes Energía2 264 ..." / "Costes Energía3 170 ..."
+    // (Activa Comercializadora): una línea por periodo con los kWh justo detrás de la etiqueta.
+    // Se suma cada periodo (1-6) una sola vez. El orden en que pdf.js devuelve las filas puede
+    // cambiar, pero la suma no depende de a qué número de periodo se asocie cada cifra.
+    var reCostesEn = /Costes\s+Energ[ií]a\s*([1-6])\s+(\d{1,5}(?:[.,]\d+)?)\s+\d/gi;
+    var mce, periodosCostes = {};
+    while((mce = reCostesEn.exec(t)) !== null){
+      if(!periodosCostes[mce[1]]){
+        periodosCostes[mce[1]] = true;
+        sumaEnergia += numES(mce[2]);
+        tramosEnergia++;
+      }
+    }
+  }
+
   if(tramosEnergia > 0){
     consumoTotal = sumaEnergia;
   } else {
@@ -1231,8 +1247,9 @@ function parsearFacturaLuz(texto){
     if(mConsumoTotal){
       consumoTotal = numES(mConsumoTotal[1]);
     } else {
-      // Fallback genérico: primer "NN kWh" suelto razonable
-      var mGenerico = t.match(/(\d{1,4}(?:[.,]\d+)?)\s*kWh\b/i);
+      // Fallback genérico: primer "NN kWh" suelto razonable. Se ignoran los "NN kWh x precio"
+      // (recuadros comparativos con precios de ejemplo, no consumo facturado).
+      var mGenerico = t.match(/(\d{1,4}(?:[.,]\d+)?)\s*kWh\b(?!\s*x\s*\d)/i);
       if(mGenerico) consumoTotal = numES(mGenerico[1]);
     }
   }
@@ -1285,7 +1302,9 @@ function parsearFacturaLuz(texto){
   // --- Potencia contratada (kW) ---
   // Casos: "Potencia punta: 3,7 kW" / "Potencia: 5.75 kW" / "Punta 3,7 kW x ..."
   var potencias = [];
-  var rePot = /Potencia\s*(?:punta|contratada)?:?\s*(\d{1,2}(?:[.,]\d+)?)\s*kW\b/gi;
+  // Algunas facturas (Activa) repiten la potencia por periodo separada con guion:
+  // "Potencia contratada: 5,710-5,710kW" -> se toma el primer valor.
+  var rePot = /Potencia\s*(?:punta|contratada)?:?\s*(\d{1,2}(?:[.,]\d+)?)(?:\s*-\s*\d{1,2}(?:[.,]\d+)?)*\s*kW\b/gi;
   var mp;
   while((mp = rePot.exec(t)) !== null){
     potencias.push(numESPotencia(mp[1]));
@@ -1392,6 +1411,13 @@ function titularEsEmpresa(texto){
   // "Titular: NOMBRE" sin NIF al lado (la factura no lo trae en esa línea)
   var r3 = /Titular(?:\s+del\s+contrato)?\s*:\s*((?:(?!NIF|CIF|Direcci[oó]n|Domicilio|N[ºo°]).){2,70})/i;
   if((mm = t.match(r3))) candidatos.push({id: '', nombre: mm[1]});
+  // Facturas sin la palabra "Titular" (Activa): el nombre y el NIF/CIF del cliente van bajo
+  // "DATOS DE FACTURA", antes de "DATOS DE SUMINISTRO". El CIF de la comercializadora va
+  // ANTES de "DATOS DE FACTURA" (cabecera), así que no se confunde.
+  if(!candidatos.length){
+    var r4 = new RegExp('DATOS\\s+DE\\s+FACTURA[\\s\\S]{0,300}?\\b' + ID, 'i');
+    if((mm = t.match(r4))) candidatos.push({id: mm[1], nombre: ''});
+  }
 
   var SOCIEDAD = /(?:\b|^)(?:S\s?\.?\s?L\s?\.?\s?U?\s?\.?|S\s?\.?\s?A\s?\.?\s?U?\s?\.?|S\s?\.?\s?L\s?\.?\s?L\s?\.?|S\.?\s?COOP\.?|S\.?\s?C\.?\s?P\.?|C\.?\s?B\.?|COMUNIDAD\s+DE\s+PROPIETARIOS|FUNDACI[OÓ]N|ASOCIACI[OÓ]N|AYUNTAMIENTO|SOCIEDAD|COOPERATIVA)\s*$/i;
   for(var i = 0; i < candidatos.length; i++){
